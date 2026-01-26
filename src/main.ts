@@ -11,8 +11,9 @@ async function main() {
 
     const input = new Input();
     const world = new World({ x: 0, y: 0 }); // Zero gravity
+    world.init();
     const renderer = new Renderer();
-    new ConfigPanel(world.vehicle);
+    new ConfigPanel(world);
 
     function loop() {
         world.update(input);

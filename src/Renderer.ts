@@ -36,31 +36,61 @@ export class Renderer {
 
         // Camera transform: Center on vehicle
         const { translation, rotation } = vehicle.getTransform();
+        const scale = 10;
 
         this.ctx.translate(this.width / 2, this.height / 2);
-        // Inverse translation to keep vehicle center?
-        // User wants "move vehicle around". Usually means camera follows.
-        // So we translate world so vehicle is at 0,0 (relative to camera center).
-        // Actually, let's keep vehicle at center.
-        // World moves opposite to vehicle.
+        this.ctx.scale(scale, scale);
+        // Important: Translate world opposite to vehicle position
+        this.ctx.translate(-translation.x, -translation.y);
 
-        // Grid (optional, helps see movement)
-        this.drawGrid(translation.x, translation.y);
+        // Grid
+        this.drawGrid(translation.x, translation.y, scale);
 
-        // Draw Vehicle (at 0,0 local space, but rotated)
+        // Draw Track (Visuals)
+        if (world.track) {
+            const path = world.track.path;
+            if (path.length > 0) {
+                this.ctx.save();
+                this.ctx.lineJoin = 'round';
+                this.ctx.lineCap = 'round';
+
+                // Track Width (Asphalt)
+                const trackWidth = 30;
+
+                // 1. Draw Border (White)
+                this.ctx.strokeStyle = '#ddd';
+                this.ctx.lineWidth = trackWidth + 2;
+                this.ctx.beginPath();
+                this.ctx.moveTo(path[0].x, path[0].y);
+                for (let i = 1; i < path.length; i++) {
+                    this.ctx.lineTo(path[i].x, path[i].y);
+                }
+                this.ctx.closePath();
+                this.ctx.stroke();
+
+                // 2. Draw Asphalt (Dark Grey)
+                this.ctx.strokeStyle = '#333';
+                this.ctx.lineWidth = trackWidth;
+                this.ctx.stroke();
+
+                // 3. Centerline (Dashed Yellow)
+                this.ctx.strokeStyle = '#cc0'; // Yellowish
+                this.ctx.lineWidth = 0.5;
+                this.ctx.setLineDash([2, 3]);
+                this.ctx.stroke();
+
+                this.ctx.restore();
+            }
+        }
+
+        // Draw Vehicle
         this.ctx.save();
+        this.ctx.translate(translation.x, translation.y);
         this.ctx.rotate(rotation);
 
         // Draw Triangle
-        this.ctx.beginPath();
         const vLength = vehicle.length;
         const vWidth = vehicle.width;
-        // Same points as collider
-        // (Length/2, 0), (-Length/2, Width/2), (-Length/2, -Width/2)
-        // Scale for visibility (Rapier units are small, meters. Pixels are small. Need Zoom).
-        const scale = 10; // 20 pixels per meter -> 10 for zoom out
-
-        this.ctx.scale(scale, scale);
 
         this.ctx.fillStyle = '#ff6347';
         this.ctx.beginPath();
@@ -70,67 +100,40 @@ export class Renderer {
         this.ctx.closePath();
         this.ctx.fill();
 
-        // Draw Debug Inputs (Blue points)
-        this.ctx.fillStyle = '#00bfff'; // Deep Sky Blue
+        // Debug Inputs
         const pointSize = 0.2;
-
+        this.ctx.fillStyle = '#00bfff';
         if (input.isDown('ArrowUp')) {
-            this.ctx.beginPath();
-            this.ctx.arc(vLength / 2 + 0.5, 0, pointSize, 0, Math.PI * 2);
-            this.ctx.fill();
+            this.ctx.beginPath(); this.ctx.arc(vLength / 2 + 0.5, 0, pointSize, 0, Math.PI * 2); this.ctx.fill();
         }
         if (input.isDown('ArrowDown')) {
-            this.ctx.beginPath();
-            this.ctx.arc(-vLength / 2 - 0.5, 0, pointSize, 0, Math.PI * 2);
-            this.ctx.fill();
+            this.ctx.beginPath(); this.ctx.arc(-vLength / 2 - 0.5, 0, pointSize, 0, Math.PI * 2); this.ctx.fill();
         }
         if (input.isDown('ArrowLeft')) {
-            this.ctx.beginPath();
-            this.ctx.arc(-vLength / 2, -vWidth / 2 - 0.5, pointSize, 0, Math.PI * 2);
-            this.ctx.fill();
+            this.ctx.beginPath(); this.ctx.arc(-vLength / 2, -vWidth / 2 - 0.5, pointSize, 0, Math.PI * 2); this.ctx.fill();
         }
         if (input.isDown('ArrowRight')) {
-            this.ctx.beginPath();
-            this.ctx.arc(-vLength / 2, vWidth / 2 + 0.5, pointSize, 0, Math.PI * 2);
-            this.ctx.fill();
+            this.ctx.beginPath(); this.ctx.arc(-vLength / 2, vWidth / 2 + 0.5, pointSize, 0, Math.PI * 2); this.ctx.fill();
         }
 
-        this.ctx.restore(); // Undo rotation/scale for vehicle
+        this.ctx.restore();
 
         // Draw Velocity Vector
         const vel = vehicle.getVelocity();
         const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y);
         if (speed > 0.1) {
             this.ctx.save();
+            this.ctx.translate(translation.x, translation.y);
             this.ctx.strokeStyle = '#00ff00';
-            this.ctx.lineWidth = 2;
+            this.ctx.lineWidth = 0.2;
             this.ctx.beginPath();
             this.ctx.moveTo(0, 0);
-            // Velocity visualization
-            // The velocity is in world space. We are in camera space (centered on vehicle).
-            // Since we didn't rotate the whole world context, just the vehicle context,
-            // we can apply world space rotation?
-            // Wait, I translated `this.ctx.translate(this.width / 2, this.height / 2)`.
-            // Then I did NOT rotate/translate for world position yet.
-            // So I am drawing in "screen" space centered.
-            // The vehicle is drawn rotated.
-            // The Velocity vector is World Space relative directions.
-            // If I draw it here, I should rotate it by -rotation if I want it relative to vehicle body?
-            // Or if I want to show world velocity vector relative to screen?
-            // "Visualise velocity angle and strenght".
-            // Let's draw it from the center.
-            // Since the camera is static relative to vehicle orientation? No, usually camera doesn't rotate with vehicle in top down unless specified.
-            // I implemented: Camera follows Position, but NOT Rotation (Standard top down).
-            // So Vehicle rotates on screen.
-            // So Velocity vector (World Space) can be drawn directly.
-            // But need to scale it.
-            const scale = 10;
-            this.ctx.lineTo(vel.x * scale, vel.y * scale);
+            this.ctx.lineTo(vel.x, vel.y);
             this.ctx.stroke();
             this.ctx.restore();
         }
 
-        this.ctx.restore(); // Restore to screen coordinates
+        this.ctx.restore(); // Undo camera
 
         // HUD
         this.ctx.fillStyle = 'white';
@@ -141,40 +144,34 @@ export class Renderer {
         this.drawMinimap(world, vehicle);
     }
 
-    drawGrid(camX: number, camY: number) {
+    drawGrid(camX: number, camY: number, scale: number) {
         this.ctx.strokeStyle = '#333';
-        this.ctx.lineWidth = 1;
+        this.ctx.lineWidth = 1 / scale;
 
-        const scale = 10; // Zoom out 2x (was 20)
-        const gridSize = (5 / 3) * 4; // Grid 4x bigger
-        const scaledGridSize = gridSize * scale; // Pixels per grid line interval
+        const gridSize = (5 / 3) * 4;
 
-        const worldOffsetX = camX * scale;
-        const worldOffsetY = camY * scale;
+        const viewW = this.width / scale;
+        const viewH = this.height / scale;
 
-        // Calculate the starting point for drawing grid lines
-        // We want the grid lines to align with world coordinates, so we need to find the first grid line
-        // that is visible on screen, relative to the current camera position.
-        const startX = Math.floor((worldOffsetX - this.width / 2) / scaledGridSize) * scaledGridSize;
-        const startY = Math.floor((worldOffsetY - this.height / 2) / scaledGridSize) * scaledGridSize;
+        const startX = Math.floor((camX - viewW / 2) / gridSize) * gridSize;
+        const startY = Math.floor((camY - viewH / 2) / gridSize) * gridSize;
 
-        this.ctx.save();
+        const endX = camX + viewW / 2;
+        const endY = camY + viewH / 2;
+
         this.ctx.beginPath();
 
-        // Draw vertical lines
-        for (let x = startX; x < worldOffsetX + this.width / 2 + scaledGridSize; x += scaledGridSize) {
-            this.ctx.moveTo(x - worldOffsetX, -this.height / 2);
-            this.ctx.lineTo(x - worldOffsetX, this.height / 2);
+        for (let x = startX; x <= endX + gridSize; x += gridSize) {
+            this.ctx.moveTo(x, camY - viewH / 2);
+            this.ctx.lineTo(x, camY + viewH / 2);
         }
 
-        // Draw horizontal lines
-        for (let y = startY; y < worldOffsetY + this.height / 2 + scaledGridSize; y += scaledGridSize) {
-            this.ctx.moveTo(-this.width / 2, y - worldOffsetY);
-            this.ctx.lineTo(this.width / 2, y - worldOffsetY);
+        for (let y = startY; y <= endY + gridSize; y += gridSize) {
+            this.ctx.moveTo(camX - viewW / 2, y);
+            this.ctx.lineTo(camX + viewW / 2, y);
         }
 
         this.ctx.stroke();
-        this.ctx.restore();
     }
 
     drawMinimap(world: World, vehicle: Vehicle) {
@@ -184,33 +181,50 @@ export class Renderer {
         const y = this.height - miniMapSize - padding;
 
         // Background
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'; // Semi-transparent black
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
         this.ctx.fillRect(x, y, miniMapSize, miniMapSize);
         this.ctx.strokeStyle = '#fff';
         this.ctx.lineWidth = 2;
         this.ctx.strokeRect(x, y, miniMapSize, miniMapSize);
 
-        // Map world coords to minimap coords
-        // World is centered at 0,0 with width/2 extents
-        // Minimap 0,0 is at x,y
         const worldW = world.width;
         const worldH = world.height;
-
         const vPos = vehicle.body.translation();
 
-        // Normalize position to 0..1 relative to world top-left
-        // World top-left is (-worldW/2, -worldH/2)
-        const nX = (vPos.x + worldW / 2) / worldW;
-        const nY = (vPos.y + worldH / 2) / worldH;
+        const mapX = (wx: number) => x + ((wx + worldW / 2) / worldW) * miniMapSize;
+        const mapY = (wy: number) => y + ((wy + worldH / 2) / worldH) * miniMapSize;
 
-        // Map to minimap pixels
-        const miniX = x + nX * miniMapSize;
-        const miniY = y + nY * miniMapSize;
+        // Draw Track Visuals on Minimap
+        if (world.track) {
+            const path = world.track.path;
+            if (path.length > 0) {
+                this.ctx.save();
+                this.ctx.strokeStyle = '#888';
+                this.ctx.lineWidth = 4;
+                this.ctx.beginPath();
+
+                const p0 = path[0];
+                this.ctx.moveTo(mapX(p0.x), mapY(p0.y));
+                for (let i = 1; i < path.length; i++) {
+                    const p = path[i];
+                    this.ctx.lineTo(mapX(p.x), mapY(p.y));
+                }
+                this.ctx.closePath();
+                this.ctx.stroke();
+                this.ctx.restore();
+            }
+        }
 
         // Draw Vehicle dot
+        let dotX = mapX(vPos.x);
+        let dotY = mapY(vPos.y);
+
+        dotX = Math.max(x, Math.min(x + miniMapSize, dotX));
+        dotY = Math.max(y, Math.min(y + miniMapSize, dotY));
+
         this.ctx.fillStyle = '#ff6347';
         this.ctx.beginPath();
-        this.ctx.arc(miniX, miniY, 4, 0, Math.PI * 2);
+        this.ctx.arc(dotX, dotY, 3, 0, Math.PI * 2);
         this.ctx.fill();
     }
 }

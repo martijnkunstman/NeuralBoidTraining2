@@ -16,6 +16,9 @@
     },
     "dependencies": {
         "@dimforge/rapier2d-compat": "^0.12.0",
-        "lil-gui": "^0.21.0"
+        "@types/seedrandom": "^3.0.8",
+        "convex-hull": "^1.0.3",
+        "lil-gui": "^0.21.0",
+        "seedrandom": "^3.0.5"
     }
 }

@@ -1,34 +1,44 @@
 import GUI from 'lil-gui';
-import { Vehicle } from './Vehicle';
+import { World } from './World';
 
 export class ConfigPanel {
     gui: GUI;
-    vehicle: Vehicle;
+    world: World;
 
-    constructor(vehicle: Vehicle) {
-        this.vehicle = vehicle;
+    constructor(world: World) {
+        this.world = world;
         this.gui = new GUI();
+        const vehicle = this.world.vehicle;
 
         const physicsFolder = this.gui.addFolder('Physics');
 
-        physicsFolder.add(this.vehicle, 'maxSpeed', 0, 100);
-        physicsFolder.add(this.vehicle, 'maxForce', 0, 500);
-        physicsFolder.add(this.vehicle, 'maxTorque', 0, 500);
+        physicsFolder.add(vehicle, 'maxSpeed', 0, 100);
+        physicsFolder.add(vehicle, 'maxForce', 0, 500);
+        physicsFolder.add(vehicle, 'maxTorque', 0, 500);
 
         // Damping needs special handling as it writes to the Rapier body
         const dampingConfig = {
-            linearDamping: this.vehicle.body.linearDamping(),
-            angularDamping: this.vehicle.body.angularDamping()
+            linearDamping: vehicle.body.linearDamping(),
+            angularDamping: vehicle.body.angularDamping()
         };
 
         physicsFolder.add(dampingConfig, 'linearDamping', 0, 10).onChange((v: number) => {
-            this.vehicle.body.setLinearDamping(v);
+            vehicle.body.setLinearDamping(v);
         });
 
         physicsFolder.add(dampingConfig, 'angularDamping', 0, 50).onChange((v: number) => {
-            this.vehicle.body.setAngularDamping(v);
+            vehicle.body.setAngularDamping(v);
+        });
+
+        const trackFolder = this.gui.addFolder('Track');
+        const trackConfig = {
+            seed: 'track-seed'
+        };
+        trackFolder.add(trackConfig, 'seed').name('Seed').onFinishChange((v: string) => {
+            this.world.regenerateTrack(v);
         });
 
         physicsFolder.open();
+        trackFolder.open();
     }
 }
