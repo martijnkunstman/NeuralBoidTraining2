@@ -56,7 +56,7 @@ export class Renderer {
         // Same points as collider
         // (Length/2, 0), (-Length/2, Width/2), (-Length/2, -Width/2)
         // Scale for visibility (Rapier units are small, meters. Pixels are small. Need Zoom).
-        const scale = 20; // 20 pixels per meter
+        const scale = 10; // 20 pixels per meter -> 10 for zoom out
 
         this.ctx.scale(scale, scale);
 
@@ -122,7 +122,7 @@ export class Renderer {
             // So Vehicle rotates on screen.
             // So Velocity vector (World Space) can be drawn directly.
             // But need to scale it.
-            const scale = 20;
+            const scale = 10;
             this.ctx.lineTo(vel.x * scale, vel.y * scale);
             this.ctx.stroke();
             this.ctx.restore();
@@ -141,8 +141,8 @@ export class Renderer {
         this.ctx.strokeStyle = '#333';
         this.ctx.lineWidth = 1;
 
-        const scale = 20; // Pixels per meter
-        const gridSize = 5; // Meters per grid line interval
+        const scale = 10; // Zoom out 2x (was 20)
+        const gridSize = 5 / 3; // Grid 3x smaller (was 5)
         const scaledGridSize = gridSize * scale; // Pixels per grid line interval
 
         const worldOffsetX = camX * scale;

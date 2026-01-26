@@ -52,10 +52,17 @@ export class Vehicle {
         }
 
         if (input.isDown('ArrowLeft')) {
-            this.body.applyTorqueImpulse(this.maxTorque * 0.016, true);
+            // Swap: Left Arrow now turns Right (CW / negative torque)? 
+            // Or did the user mean "Left key steers Left, Right key steers Right" but it was inverted?
+            // "Swap left right steering" usually means the current mapping is wrong.
+            // Standard: Left Key -> Turn Left (CCW). Right Key -> Turn Right (CW).
+            // Previous code: Left -> Positive Torque (CCW). Right -> Negative (CW).
+            // If user wants swap, he probably felt it was inverted.
+            // So Left -> Negative (CW). Right -> Positive (CCW).
+            this.body.applyTorqueImpulse(-this.maxTorque * 0.016, true);
         }
         if (input.isDown('ArrowRight')) {
-            this.body.applyTorqueImpulse(-this.maxTorque * 0.016, true);
+            this.body.applyTorqueImpulse(this.maxTorque * 0.016, true);
         }
     }
 
