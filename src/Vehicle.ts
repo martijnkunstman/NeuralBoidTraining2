@@ -14,6 +14,12 @@ export class Vehicle {
     width = 2; // Base width
     length = 3; // Height/Length
 
+    // Sensors
+    sensorCount = 7;
+    sensorLength = 50;
+    sensorFov = Math.PI / 2; // 90 degrees
+    sensors: { start: { x: number, y: number }, end: { x: number, y: number } }[] = [];
+
     constructor(world: RAPIER.World, x: number, y: number) {
         const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
             .setTranslation(x, y)
@@ -52,17 +58,49 @@ export class Vehicle {
         }
 
         if (input.isDown('ArrowLeft')) {
-            // Swap: Left Arrow now turns Right (CW / negative torque)? 
-            // Or did the user mean "Left key steers Left, Right key steers Right" but it was inverted?
-            // "Swap left right steering" usually means the current mapping is wrong.
-            // Standard: Left Key -> Turn Left (CCW). Right Key -> Turn Right (CW).
-            // Previous code: Left -> Positive Torque (CCW). Right -> Negative (CW).
-            // If user wants swap, he probably felt it was inverted.
-            // So Left -> Negative (CW). Right -> Positive (CCW).
             this.body.applyTorqueImpulse(-this.maxTorque * 0.016, true);
         }
         if (input.isDown('ArrowRight')) {
             this.body.applyTorqueImpulse(this.maxTorque * 0.016, true);
+        }
+
+        this.updateSensors();
+    }
+
+    updateSensors() {
+        this.sensors = [];
+        const { translation, rotation } = this.getTransform();
+
+        // Start rays from center of vehicle
+        // Or maybe front? Let's do center for now as per plan, but front might make more sense for "eyes".
+        // Plan said: "Calculates the start (vehicle center or front)..."
+        // Let's use the actual position (center of mass) as start for now.
+
+        const startX = translation.x;
+        const startY = translation.y;
+
+        // Angle logic
+        // If count is 1, shoot straight ahead
+        // If count > 1, spread across FOV centered on heading
+
+        const heading = rotation;
+
+        for (let i = 0; i < this.sensorCount; i++) {
+            let angle = heading;
+
+            if (this.sensorCount > 1) {
+                // Map i from 0..count-1 to -fov/2 .. +fov/2
+                const ratio = i / (this.sensorCount - 1);
+                angle = heading - (this.sensorFov / 2) + (this.sensorFov * ratio);
+            }
+
+            const endX = startX + Math.cos(angle) * this.sensorLength;
+            const endY = startY + Math.sin(angle) * this.sensorLength;
+
+            this.sensors.push({
+                start: { x: startX, y: startY },
+                end: { x: endX, y: endY }
+            });
         }
     }
 

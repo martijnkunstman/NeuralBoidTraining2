@@ -133,6 +133,26 @@ export class Renderer {
             this.ctx.restore();
         }
 
+        // Draw Sensors
+        if (vehicle.sensors && vehicle.sensors.length > 0) {
+            this.ctx.strokeStyle = '#ffff00'; // Yellow
+            this.ctx.lineWidth = 0.5;
+            this.ctx.beginPath();
+            for (const sensor of vehicle.sensors) {
+                this.ctx.moveTo(sensor.start.x, sensor.start.y);
+                this.ctx.lineTo(sensor.end.x, sensor.end.y);
+            }
+            this.ctx.stroke();
+
+            // Draw points at ends
+            this.ctx.fillStyle = '#ff0000';
+            for (const sensor of vehicle.sensors) {
+                this.ctx.beginPath();
+                this.ctx.arc(sensor.end.x, sensor.end.y, 0.2, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+        }
+
         this.ctx.restore(); // Undo camera
 
         // HUD

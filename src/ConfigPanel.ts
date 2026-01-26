@@ -38,7 +38,20 @@ export class ConfigPanel {
             this.world.regenerateTrack(v);
         });
 
+        const sensorFolder = this.gui.addFolder('Sensors');
+        sensorFolder.add(vehicle, 'sensorCount', 1, 50, 1).name('Count');
+        sensorFolder.add(vehicle, 'sensorLength', 10, 300).name('Length');
+
+        // FOV configuration helper
+        const sensorConfig = {
+            fovDeg: (vehicle.sensorFov * 180) / Math.PI
+        };
+        sensorFolder.add(sensorConfig, 'fovDeg', 0, 360).name('FOV (Deg)').onChange((v: number) => {
+            vehicle.sensorFov = (v * Math.PI) / 180;
+        });
+
         physicsFolder.open();
         trackFolder.open();
+        sensorFolder.open();
     }
 }
