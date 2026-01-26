@@ -6,9 +6,9 @@ export class Vehicle {
     collider: RAPIER.Collider;
 
     // Configuration
-    maxSpeed = 20; // Units per second?
-    maxForce = 50;
-    maxTorque = 5;
+    maxSpeed = 30;
+    maxForce = 150;
+    maxTorque = 250; // Extremely high torque
 
     // Dimensions
     width = 2; // Base width
@@ -17,8 +17,8 @@ export class Vehicle {
     constructor(world: RAPIER.World, x: number, y: number) {
         const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
             .setTranslation(x, y)
-            .setLinearDamping(2.0) // Drag
-            .setAngularDamping(4.0); // Angular drag
+            .setLinearDamping(4.0) // Higher drag for stopping power
+            .setAngularDamping(30.0); // Extreme angular damping for instant stop
 
         this.body = world.createRigidBody(bodyDesc);
 
