@@ -92,7 +92,7 @@ export class Renderer {
         const vLength = vehicle.length;
         const vWidth = vehicle.width;
 
-        this.ctx.fillStyle = '#ff6347';
+        this.ctx.fillStyle = '#cccccc';
         this.ctx.beginPath();
         this.ctx.moveTo(vLength / 2, 0);
         this.ctx.lineTo(-vLength / 2, vWidth / 2);
@@ -222,7 +222,7 @@ export class Renderer {
         dotX = Math.max(x, Math.min(x + miniMapSize, dotX));
         dotY = Math.max(y, Math.min(y + miniMapSize, dotY));
 
-        this.ctx.fillStyle = '#ff6347';
+        this.ctx.fillStyle = '#dddddd';
         this.ctx.beginPath();
         this.ctx.arc(dotX, dotY, 3, 0, Math.PI * 2);
         this.ctx.fill();
