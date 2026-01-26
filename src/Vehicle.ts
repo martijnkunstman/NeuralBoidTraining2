@@ -15,9 +15,9 @@ export class Vehicle {
     length = 3; // Height/Length
 
     // Sensors
-    sensorCount = 7;
+    sensorCount = 9;
     sensorLength = 50;
-    sensorFov = Math.PI / 2; // 90 degrees
+    sensorFov = Math.PI * 0.7; // ~126 degrees (Wider than 90)
     sensors: {
         start: { x: number, y: number },
         end: { x: number, y: number },
@@ -60,9 +60,7 @@ export class Vehicle {
         if (input.isDown('ArrowUp')) {
             this.body.applyImpulse({ x: dirX * this.maxForce * 0.016, y: dirY * this.maxForce * 0.016 }, true);
         }
-        if (input.isDown('ArrowDown')) {
-            this.body.applyImpulse({ x: -dirX * this.maxForce * 0.016 * 0.5, y: -dirY * this.maxForce * 0.016 * 0.5 }, true);
-        }
+
 
         if (input.isDown('ArrowLeft')) {
             this.body.applyTorqueImpulse(-this.maxTorque * 0.016, true);

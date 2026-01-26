@@ -129,9 +129,7 @@ export class Renderer {
         if (input.isDown('ArrowUp')) {
             this.ctx.beginPath(); this.ctx.arc(vLength / 2 + 0.5, 0, pointSize, 0, Math.PI * 2); this.ctx.fill();
         }
-        if (input.isDown('ArrowDown')) {
-            this.ctx.beginPath(); this.ctx.arc(-vLength / 2 - 0.5, 0, pointSize, 0, Math.PI * 2); this.ctx.fill();
-        }
+
         if (input.isDown('ArrowLeft')) {
             this.ctx.beginPath(); this.ctx.arc(-vLength / 2, -vWidth / 2 - 0.5, pointSize, 0, Math.PI * 2); this.ctx.fill();
         }
@@ -158,18 +156,24 @@ export class Renderer {
 
         // Draw Sensors
         if (vehicle.sensors && vehicle.sensors.length > 0) {
-            this.ctx.lineWidth = 0.5;
+            this.ctx.lineWidth = 0.1; // 1 pixel at scale 10
 
             for (const sensor of vehicle.sensors) {
+                let alpha = 0.1; // Default for no hit (max distance)
+
+                if (sensor.hit) {
+                    // Map distance (0..length) to Alpha (1.0..0.1)
+                    // limit distance to sensorLength just in case
+                    const dist = Math.min(sensor.hit.distance, vehicle.sensorLength);
+                    const ratio = dist / vehicle.sensorLength; // 0 (close) to 1 (far)
+                    alpha = 1.0 - (ratio * 0.9); // 1.0 -> 0.1
+                }
+
+                this.ctx.strokeStyle = `rgba(255, 255, 0, ${alpha})`; // Yellow
+
                 this.ctx.beginPath();
                 this.ctx.moveTo(sensor.start.x, sensor.start.y);
                 this.ctx.lineTo(sensor.end.x, sensor.end.y);
-
-                if (sensor.hit) {
-                    this.ctx.strokeStyle = '#ff0000'; // Red for hit
-                } else {
-                    this.ctx.strokeStyle = '#ffff00'; // Yellow for no hit (full length)
-                }
                 this.ctx.stroke();
 
                 // Draw points at ends
@@ -177,11 +181,6 @@ export class Renderer {
                     this.ctx.fillStyle = '#ff0000';
                     this.ctx.beginPath();
                     this.ctx.arc(sensor.end.x, sensor.end.y, 0.3, 0, Math.PI * 2);
-                    this.ctx.fill();
-                } else {
-                    this.ctx.fillStyle = '#ffff00';
-                    this.ctx.beginPath();
-                    this.ctx.arc(sensor.end.x, sensor.end.y, 0.2, 0, Math.PI * 2);
                     this.ctx.fill();
                 }
             }
