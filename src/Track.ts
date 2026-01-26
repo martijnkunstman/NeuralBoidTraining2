@@ -11,6 +11,8 @@ export class Track {
     height: number;
     path: { x: number, y: number }[] = [];
     startPos: { x: number, y: number } = { x: 0, y: 0 };
+    innerLoop: { x: number, y: number }[] = [];
+    outerLoop: { x: number, y: number }[] = [];
 
     constructor(world: RAPIER.World, width: number, height: number, seed: string = '300') {
         this.world = world;
@@ -120,7 +122,7 @@ export class Track {
             const nx = -dy / len;
             const ny = dx / len;
 
-            const displacement = (this.rng() - 0.5) * len * 1.5;
+            const displacement = (this.rng() - 0.5) * len * 0.7;
 
             complexPath.push({
                 x: mx + nx * displacement,
@@ -154,6 +156,89 @@ export class Track {
         this.path = smoothPath;
         this.startPos = this.path[0];
 
-        // No Walls for now
+        // Generate Walls
+        // Create Inner and Outer loops based on normal expansion
+        const halfWidth = (this.trackWidth / 2) + 1; // +1 to align with visual border
+
+        for (let i = 0; i < this.path.length; i++) {
+            const p0 = this.path[(i - 1 + this.path.length) % this.path.length];
+            const p1 = this.path[i];
+            const p2 = this.path[(i + 1) % this.path.length];
+
+            // Average Normal
+            // Vector p0->p1
+            const dx1 = p1.x - p0.x;
+            const dy1 = p1.y - p0.y;
+            const len1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+            const n1x = -dy1 / len1;
+            const n1y = dx1 / len1;
+
+            // Vector p1->p2
+            const dx2 = p2.x - p1.x;
+            const dy2 = p2.y - p1.y;
+            const len2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+            const n2x = -dy2 / len2;
+            const n2y = dx2 / len2;
+
+            // Average
+            let nx = (n1x + n2x) / 2;
+            let ny = (n1y + n2y) / 2;
+            const lenN = Math.sqrt(nx * nx + ny * ny);
+            nx /= lenN;
+            ny /= lenN;
+
+            // Inward Point (Negative Normal? Depends on winding order. Hull is typically CCW?)
+            // If CCW, normal points INWARD. 
+            // Wait, hull step: points sort by X, monotone chain... result is usually CCW?
+            // cross product check: (b.x - a.x)*(c.y - a.y) ...
+
+            // Let's just create points and we can swap if needed later, or rely on visual border logic.
+            // Actually, Renderer uses separate Fill and Stroke but the path is center.
+            // Renderer draws path, then strokes with lineWidth.
+            // So we just need offsets.
+
+            this.innerLoop.push({ x: p1.x - nx * halfWidth, y: p1.y - ny * halfWidth });
+            this.outerLoop.push({ x: p1.x + nx * halfWidth, y: p1.y + ny * halfWidth });
+        }
+
+        // Create RigidBodies
+        // We use a single Static body and attach colliders, or one body per wall?
+        // One static body for all track walls is fine.
+        const bodyDesc = RAPIER.RigidBodyDesc.fixed();
+        const wallBody = this.world.createRigidBody(bodyDesc);
+        this.walls.push(wallBody);
+
+        // Rapier Polyline expects Float32Array of x,y,x,y...
+        // We do not need the intermediate Float32Arrays if we use the spread syntax below directly.
+
+        // Indices? No, Polyline just follows points?
+        // Wait, 'polyline' collider takes vertices and indices usually?
+        // Rapier JS `ColliderDesc.polyline(vertices: Float32Array)`
+        // NOTE: Does it automatically close the loop? Probably not.
+        // We need to duplicate first point at end? Or indices?
+
+        // Let's consult knowledge or assume explicit closure needed.
+        // Actually simpler: Use multiple segments (Segment Collider) OR Trimesh?
+        // Polyline is good for walls.
+
+        // Let's verify Rapier API for JS. `ColliderDesc.polyline(vertices)` exists.
+
+        // Duplicate start point to close loop
+        const innerFlat: number[] = [];
+        this.innerLoop.forEach(p => innerFlat.push(p.x, p.y));
+        innerFlat.push(this.innerLoop[0].x, this.innerLoop[0].y); // Close
+
+        const outerFlat: number[] = [];
+        this.outerLoop.forEach(p => outerFlat.push(p.x, p.y));
+        outerFlat.push(this.outerLoop[0].x, this.outerLoop[0].y); // Close
+
+        const innerClosed = new Float32Array(innerFlat);
+        const outerClosed = new Float32Array(outerFlat);
+
+        const innerCollider = RAPIER.ColliderDesc.polyline(innerClosed);
+        const outerCollider = RAPIER.ColliderDesc.polyline(outerClosed);
+
+        this.world.createCollider(innerCollider, wallBody);
+        this.world.createCollider(outerCollider, wallBody);
     }
 }

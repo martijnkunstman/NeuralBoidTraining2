@@ -18,9 +18,16 @@ export class Vehicle {
     sensorCount = 7;
     sensorLength = 50;
     sensorFov = Math.PI / 2; // 90 degrees
-    sensors: { start: { x: number, y: number }, end: { x: number, y: number } }[] = [];
+    sensors: {
+        start: { x: number, y: number },
+        end: { x: number, y: number },
+        hit?: { x: number, y: number, distance: number }
+    }[] = [];
+
+    world: RAPIER.World;
 
     constructor(world: RAPIER.World, x: number, y: number) {
+        this.world = world;
         const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
             .setTranslation(x, y)
             .setLinearDamping(2.0) // Lower drag for gliding
@@ -71,35 +78,59 @@ export class Vehicle {
         this.sensors = [];
         const { translation, rotation } = this.getTransform();
 
-        // Start rays from center of vehicle
-        // Or maybe front? Let's do center for now as per plan, but front might make more sense for "eyes".
-        // Plan said: "Calculates the start (vehicle center or front)..."
-        // Let's use the actual position (center of mass) as start for now.
-
         const startX = translation.x;
         const startY = translation.y;
-
-        // Angle logic
-        // If count is 1, shoot straight ahead
-        // If count > 1, spread across FOV centered on heading
-
         const heading = rotation;
 
         for (let i = 0; i < this.sensorCount; i++) {
             let angle = heading;
 
             if (this.sensorCount > 1) {
-                // Map i from 0..count-1 to -fov/2 .. +fov/2
                 const ratio = i / (this.sensorCount - 1);
                 angle = heading - (this.sensorFov / 2) + (this.sensorFov * ratio);
             }
 
-            const endX = startX + Math.cos(angle) * this.sensorLength;
-            const endY = startY + Math.sin(angle) * this.sensorLength;
+            const dx = Math.cos(angle);
+            const dy = Math.sin(angle);
+
+            // Default end point (max range)
+            let endX = startX + dx * this.sensorLength;
+            let endY = startY + dy * this.sensorLength;
+            let hitData = undefined;
+
+            // Raycast
+            // Exclude self (optional but good practice, though ray starts inside? Rapier rays don't hit start point usually unless solid?)
+            // We can just cast. If we hit our own collider immediately, we might need a filter.
+            // But we created a triangle collider. Ray starts at center (0,0 relative).
+            // Let's rely on filter or starting slightly outside?
+            // Starting at center is risky if we hit ourselves.
+            // Rapier default filter includes everything.
+
+            const ray = new RAPIER.Ray({ x: startX, y: startY }, { x: dx, y: dy });
+            const maxToi = this.sensorLength;
+            const solid = true;
+
+            // Filter: exclude this vehicle's collider
+            // QueryFilter: (groups, excludeCollider, excludeBody)
+            // We can exclude our own collider.
+
+            const hit = this.world.castRay(ray, maxToi, solid, undefined, undefined, this.collider, this.body);
+
+            if (hit) {
+                const toi = hit.toi; // Time of impact (distance)
+                endX = startX + dx * toi;
+                endY = startY + dy * toi;
+                hitData = {
+                    x: endX,
+                    y: endY,
+                    distance: toi
+                };
+            }
 
             this.sensors.push({
                 start: { x: startX, y: startY },
-                end: { x: endX, y: endY }
+                end: { x: endX, y: endY },
+                hit: hitData
             });
         }
     }
