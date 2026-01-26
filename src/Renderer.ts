@@ -1,5 +1,6 @@
 import { Vehicle } from './Vehicle';
 import { Input } from './Input';
+import { World } from './World';
 
 export class Renderer {
     canvas: HTMLCanvasElement;
@@ -25,7 +26,8 @@ export class Renderer {
         });
     }
 
-    render(vehicle: Vehicle, input: Input) {
+    render(world: World, input: Input) {
+        const vehicle = world.vehicle;
         // Clear
         this.ctx.fillStyle = '#222';
         this.ctx.fillRect(0, 0, this.width, this.height);
@@ -135,6 +137,8 @@ export class Renderer {
         this.ctx.font = '16px monospace';
         this.ctx.fillText(`Speed: ${speed.toFixed(2)}`, 10, 20);
         this.ctx.fillText(`Pos: ${translation.x.toFixed(2)}, ${translation.y.toFixed(2)}`, 10, 40);
+
+        this.drawMinimap(world, vehicle);
     }
 
     drawGrid(camX: number, camY: number) {
@@ -142,7 +146,7 @@ export class Renderer {
         this.ctx.lineWidth = 1;
 
         const scale = 10; // Zoom out 2x (was 20)
-        const gridSize = 5 / 3; // Grid 3x smaller (was 5)
+        const gridSize = (5 / 3) * 4; // Grid 4x bigger
         const scaledGridSize = gridSize * scale; // Pixels per grid line interval
 
         const worldOffsetX = camX * scale;
@@ -171,5 +175,42 @@ export class Renderer {
 
         this.ctx.stroke();
         this.ctx.restore();
+    }
+
+    drawMinimap(world: World, vehicle: Vehicle) {
+        const miniMapSize = 150;
+        const padding = 20;
+        const x = this.width - miniMapSize - padding;
+        const y = this.height - miniMapSize - padding;
+
+        // Background
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'; // Semi-transparent black
+        this.ctx.fillRect(x, y, miniMapSize, miniMapSize);
+        this.ctx.strokeStyle = '#fff';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(x, y, miniMapSize, miniMapSize);
+
+        // Map world coords to minimap coords
+        // World is centered at 0,0 with width/2 extents
+        // Minimap 0,0 is at x,y
+        const worldW = world.width;
+        const worldH = world.height;
+
+        const vPos = vehicle.body.translation();
+
+        // Normalize position to 0..1 relative to world top-left
+        // World top-left is (-worldW/2, -worldH/2)
+        const nX = (vPos.x + worldW / 2) / worldW;
+        const nY = (vPos.y + worldH / 2) / worldH;
+
+        // Map to minimap pixels
+        const miniX = x + nX * miniMapSize;
+        const miniY = y + nY * miniMapSize;
+
+        // Draw Vehicle dot
+        this.ctx.fillStyle = '#ff6347';
+        this.ctx.beginPath();
+        this.ctx.arc(miniX, miniY, 4, 0, Math.PI * 2);
+        this.ctx.fill();
     }
 }

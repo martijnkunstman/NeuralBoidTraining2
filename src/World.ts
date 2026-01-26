@@ -11,8 +11,33 @@ export class World {
         this.vehicle = new Vehicle(this.rapierWorld, 0, 0);
     }
 
+    width = 100; // World width in meters
+    height = 100; // World height in meters
+
     update(input: Input) {
         this.vehicle.update(input);
         this.rapierWorld.step();
+        this.wrap();
+    }
+
+    wrap() {
+        const pos = this.vehicle.body.translation();
+        let newX = pos.x;
+        let newY = pos.y;
+
+        const halfW = this.width / 2;
+        const halfH = this.height / 2;
+
+        let wrapped = false;
+
+        if (pos.x > halfW) { newX = -halfW; wrapped = true; }
+        else if (pos.x < -halfW) { newX = halfW; wrapped = true; }
+
+        if (pos.y > halfH) { newY = -halfH; wrapped = true; }
+        else if (pos.y < -halfH) { newY = halfH; wrapped = true; }
+
+        if (wrapped) {
+            this.vehicle.body.setTranslation({ x: newX, y: newY }, true);
+        }
     }
 }
