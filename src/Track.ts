@@ -6,6 +6,7 @@ export class Track {
     rng: seedrandom.PRNG;
     walls: RAPIER.RigidBody[] = [];
     gridSize = 10;
+    trackWidth = 30; // Uniform width matches renderer
     width: number;
     height: number;
     path: { x: number, y: number }[] = [];
@@ -24,6 +25,39 @@ export class Track {
             this.world.removeRigidBody(wall);
         }
         this.walls = [];
+    }
+
+    isPointOnTrack(x: number, y: number): boolean {
+        // Find distance to nearest segment
+        const path = this.path;
+        if (path.length < 2) return false;
+
+        let minSqDist = Number.MAX_VALUE;
+
+        for (let i = 0; i < path.length; i++) {
+            const p1 = path[i];
+            const p2 = path[(i + 1) % path.length];
+
+            // Segment p1-p2
+            const l2 = (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2;
+            if (l2 === 0) continue;
+
+            // Project point onto line: px = p1 + t * (p2 - p1)
+            let t = ((x - p1.x) * (p2.x - p1.x) + (y - p1.y) * (p2.y - p1.y)) / l2;
+            t = Math.max(0, Math.min(1, t));
+
+            const px = p1.x + t * (p2.x - p1.x);
+            const py = p1.y + t * (p2.y - p1.y);
+
+            const distSq = (x - px) ** 2 + (y - py) ** 2;
+            if (distSq < minSqDist) {
+                minSqDist = distSq;
+            }
+        }
+
+        // Check if distance is within half-width
+        const halfWidth = this.trackWidth / 2;
+        return minSqDist <= (halfWidth * halfWidth);
     }
 
     generate() {
@@ -69,7 +103,6 @@ export class Track {
         let hull = lower.concat(upper);
 
         // 3. Displace Midpoints for Organic Shape
-        // Insert points between hull vertices and displace them inwards
         let complexPath: { x: number, y: number }[] = [];
         for (let i = 0; i < hull.length; i++) {
             const p1 = hull[i];
@@ -87,9 +120,6 @@ export class Track {
             const nx = -dy / len;
             const ny = dx / len;
 
-            // Displace inward (negative normal usually, depending on winding)
-            // Monotone chain produces CCW? Or CW? 
-            // Let's just try random displacement.
             const displacement = (this.rng() - 0.5) * len * 1.5;
 
             complexPath.push({

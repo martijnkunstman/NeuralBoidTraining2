@@ -55,7 +55,7 @@ export class Renderer {
                 this.ctx.lineCap = 'round';
 
                 // Track Width (Asphalt)
-                const trackWidth = 30;
+                const trackWidth = world.track.trackWidth;
 
                 // 1. Draw Border (White)
                 this.ctx.strokeStyle = '#ddd';

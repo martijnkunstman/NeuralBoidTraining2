@@ -26,14 +26,12 @@ export class World {
         this.vehicle.update(input);
         this.rapierWorld.step(this.eventQueue);
 
-        // Check collisions
-        this.eventQueue.drainCollisionEvents((handle1, handle2, started) => {
-            if (!started) return;
-            const vHandle = this.vehicle.body.handle;
-            if (handle1 === vHandle || handle2 === vHandle) {
-                this.resetVehicle();
-            }
-        });
+        // Smart Collision: Distance Check
+        const pos = this.vehicle.body.translation();
+        if (this.track && !this.track.isPointOnTrack(pos.x, pos.y)) {
+            // Off track!
+            this.resetVehicle();
+        }
     }
 
     resetVehicle() {
