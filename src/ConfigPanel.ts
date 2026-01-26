@@ -32,7 +32,7 @@ export class ConfigPanel {
 
         const trackFolder = this.gui.addFolder('Track');
         const trackConfig = {
-            seed: 'track-seed'
+            seed: '300'
         };
         trackFolder.add(trackConfig, 'seed').name('Seed').onFinishChange((v: string) => {
             this.world.regenerateTrack(v);
