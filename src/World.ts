@@ -32,6 +32,12 @@ export class World {
 
     bestBrainEver: Brain | null = null;
     bestFitnessEver = 0;
+
+    // Fast training mode
+    fastTrainingMode: boolean = false;
+    fastTrainingSpeed: number = 10;
+    fastTrainingTarget: number = 0;
+
     generationHistory: { gen: number, bestFitness: number, avgFitness: number, avgTop10: number }[] = [];
 
     constructor(gravity = { x: 0, y: 0 }) {
@@ -48,7 +54,7 @@ export class World {
             try {
                 const brainData = JSON.parse(savedBrain);
                 this.bestBrainEver = this.deserializeBrain(brainData);
-                console.log('Loaded best brain from localStorage');
+                console.log('✅ Loaded best brain from localStorage');
             } catch (e) {
                 console.error('Failed to load best brain', e);
             }
@@ -138,63 +144,73 @@ export class World {
 
             this.track.update(input, { x: worldMouseX, y: worldMouseY });
         } else {
-            // Play Mode: Update all vehicles
-            this.generationTimer += 1 / 60; // Assuming 60 FPS
+            // Play Mode: Fast training loop
+            const physicsSteps = this.fastTrainingMode ? this.fastTrainingSpeed : 1;
 
-            // Collect all vehicle colliders to exclude from sensors
-            const vehicleColliders = this.vehicles.map(v => v.collider);
+            for (let step = 0; step < physicsSteps; step++) {
+                this.generationTimer += 1 / 60; // Assuming 60 FPS
 
-            for (const vehicle of this.vehicles) {
-                if (!vehicle.isAlive) continue;
+                // Collect all vehicle colliders to exclude from sensors
+                const vehicleColliders = this.vehicles.map(v => v.collider);
 
-                vehicle.update(input, vehicleColliders);
+                for (const vehicle of this.vehicles) {
+                    if (!vehicle.isAlive) continue;
 
-                // Update track progress and fitness metrics
-                FitnessCalculator.updateTrackProgress(vehicle, this.track);
-            }
+                    vehicle.update(input, vehicleColliders);
 
-            // Find best vehicle (highest fitness among alive vehicles)
-            let bestFitness = -1;
-            for (const vehicle of this.vehicles) {
-                if (!vehicle.isAlive) continue;
-
-                const fitness = FitnessCalculator.calculate(vehicle, this.track);
-                if (fitness > bestFitness) {
-                    bestFitness = fitness;
-                    this.bestVehicle = vehicle;
+                    // Update track progress and fitness metrics
+                    FitnessCalculator.updateTrackProgress(vehicle, this.track);
                 }
-            }
 
-            // Track improvement for dynamic generation ending
-            if (bestFitness > this.lastBestFitness) {
-                this.lastBestFitness = bestFitness;
-                this.lastImprovementTime = this.generationTimer;
-            }
+                // Find best vehicle (highest fitness among alive vehicles)
+                let bestFitness = -1;
+                for (const vehicle of this.vehicles) {
+                    if (!vehicle.isAlive) continue;
+
+                    const fitness = FitnessCalculator.calculate(vehicle, this.track);
+                    if (fitness > bestFitness) {
+                        bestFitness = fitness;
+                        this.bestVehicle = vehicle;
+                    }
+                }
+
+                // Track improvement for dynamic generation ending
+                if (bestFitness > this.lastBestFitness) {
+                    this.lastBestFitness = bestFitness;
+                    this.lastImprovementTime = this.generationTimer;
+                }
 
 
-            // Camera follows best vehicle with smooth interpolation
-            if (this.bestVehicle && this.bestVehicle.isAlive) {
-                const vPos = this.bestVehicle.body.translation();
+                // Camera follows best vehicle with smooth interpolation
+                if (this.bestVehicle && this.bestVehicle.isAlive) {
+                    const vPos = this.bestVehicle.body.translation();
 
-                // Smooth lerp: camera moves 10% of the distance each frame (at 60fps)
-                // Lower value = smoother but slower, higher = faster but more jerky
-                const lerpFactor = 0.1;
+                    // Smooth lerp: camera moves 10% of the distance each frame (at 60fps)
+                    // Lower value = smoother but slower, higher = faster but more jerky
+                    const lerpFactor = 0.1;
 
-                this.camera.x += (vPos.x - this.camera.x) * lerpFactor;
-                this.camera.y += (vPos.y - this.camera.y) * lerpFactor;
-            }
+                    this.camera.x += (vPos.x - this.camera.x) * lerpFactor;
+                    this.camera.y += (vPos.y - this.camera.y) * lerpFactor;
+                }
 
-            // Check if generation should end
-            const aliveCount = this.vehicles.filter(v => v.isAlive).length;
-            const alivePercentage = aliveCount / this.vehicleCount;
-            const timeUp = this.generationTimer >= this.generationTime;
-            const noImprovementTime = this.generationTimer - this.lastImprovementTime;
-            const stagnant = noImprovementTime > GENERATION_CONFIG.NO_IMPROVEMENT_TIMEOUT;
-            const mostDead = alivePercentage <= 0.25; // 75% or more are dead
+                // Check if generation should end
+                const aliveCount = this.vehicles.filter(v => v.isAlive).length;
+                const alivePercentage = aliveCount / this.vehicleCount;
+                const timeUp = this.generationTimer >= this.generationTime;
+                const noImprovementTime = this.generationTimer - this.lastImprovementTime;
+                const stagnant = noImprovementTime > GENERATION_CONFIG.NO_IMPROVEMENT_TIMEOUT;
+                const mostDead = alivePercentage <= 0.25; // 75% or more are dead
 
-            if (aliveCount === 0 || timeUp || stagnant || mostDead) {
-                this.nextGeneration();
-            }
+                if (aliveCount === 0 || timeUp || stagnant || mostDead) {
+                    this.nextGeneration();
+
+                    // Check if fast training target reached
+                    if (this.fastTrainingMode && this.fastTrainingTarget > 0 && this.generation >= this.fastTrainingTarget) {
+                        this.fastTrainingMode = false;
+                        console.log(`🎯 Fast training complete! Reached generation ${this.generation}`);
+                    }
+                }
+            } // End fast training physics loop
         }
 
         this.rapierWorld.step(this.eventQueue);
@@ -257,7 +273,7 @@ export class World {
         // Save history to localStorage every generation for persistent progress tracking
         localStorage.setItem('generationHistory', JSON.stringify(this.generationHistory));
 
-        console.log(`Gen ${this.generation}: Best=${bestFitness.toFixed(1)} Avg=${avgFitness.toFixed(1)} AvgTop10=${avgTop10.toFixed(1)} AllTime=${this.bestFitnessEver.toFixed(1)}`);
+        console.log(`📈 Gen ${this.generation}: Best=${bestFitness.toFixed(1)} Avg=${avgFitness.toFixed(1)} Top10=${avgTop10.toFixed(1)} AllTime=${this.bestFitnessEver.toFixed(1)}`);
 
         // Adaptive mutation rate
         if (this.detectPlateau()) {

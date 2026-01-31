@@ -78,7 +78,23 @@ export class ConfigPanel {
         gaFolder.add(this.world, 'mutationRate', 0, 1, 0.01).name('Mutation Rate');
         gaFolder.add(this.world, 'eliteCount', 1, 20, 1).name('Elite Count');
 
+        // Fast training controls
+        gaFolder.add(this.world, 'fastTrainingSpeed', 1, 50, 1).name('Fast Train Speed (x)');
+        gaFolder.add(this.world, 'fastTrainingTarget', 0, 1000, 10).name('Target Generation');
+
         const gaActions = {
+            startFastTraining: () => {
+                if (this.world.fastTrainingTarget <= this.world.generation) {
+                    alert(`Target generation (${this.world.fastTrainingTarget}) must be higher than current generation (${this.world.generation})`);
+                    return;
+                }
+                this.world.fastTrainingMode = true;
+                console.log(`🚀 Fast training started! Speed: ${this.world.fastTrainingSpeed}x, Target: Gen ${this.world.fastTrainingTarget}`);
+            },
+            stopFastTraining: () => {
+                this.world.fastTrainingMode = false;
+                console.log('⏸️  Fast training stopped at generation ' + this.world.generation);
+            },
             resetTraining: () => {
                 // Clear all localStorage data
                 localStorage.removeItem('bestBrain');
@@ -95,7 +111,10 @@ export class ConfigPanel {
                 console.log('🔄 Training reset! All localStorage cleared.');
             }
         };
-        gaFolder.add(gaActions, 'resetTraining').name('Reset Training');
+
+        gaFolder.add(gaActions, 'startFastTraining').name('▶️ Start Fast Train');
+        gaFolder.add(gaActions, 'stopFastTraining').name('⏸️  Stop Fast Train');
+        gaFolder.add(gaActions, 'resetTraining').name('🔄 Reset Training');
 
         physicsFolder.open();
         trackFolder.open();
