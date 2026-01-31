@@ -9,10 +9,16 @@ async function main() {
     console.log('Rapier initialized');
     document.getElementById('debug')!.innerText = '';
 
+    // Create canvas
+    const canvas = document.createElement('canvas');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    document.body.appendChild(canvas);
+
     const input = new Input();
     const world = new World({ x: 0, y: 0 }); // Zero gravity
     world.init();
-    const renderer = new Renderer();
+    const renderer = new Renderer(canvas);
     new ConfigPanel(world);
 
     function loop() {

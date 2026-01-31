@@ -21,7 +21,7 @@ export class World {
     generation = 1;
     generationTime = 30; // seconds per generation
     generationTimer = 0; // current time in generation
-    eliteCount = 5; // number of top performers to keep
+    eliteCount = 10; // number of top performers to keep
     mutationRate = 0.1; // 10% mutation chance
 
     bestBrainEver: Brain | null = null;

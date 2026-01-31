@@ -8,15 +8,42 @@ export class Renderer {
     width: number;
     height: number;
 
-    constructor() {
-        this.canvas = document.createElement('canvas');
-        this.ctx = this.canvas.getContext('2d')!;
-        document.body.appendChild(this.canvas);
+    // Console log capture
+    consoleMessages: { time: number, text: string }[] = [];
+    maxConsoleMessages = 200;
+    originalConsoleLog: typeof console.log;
 
-        this.width = window.innerWidth;
-        this.height = window.innerHeight;
-        this.canvas.width = this.width;
-        this.canvas.height = this.height;
+    constructor(canvas: HTMLCanvasElement) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d')!;
+        this.width = canvas.width;
+        this.height = canvas.height;
+
+        // Intercept console.log
+        this.originalConsoleLog = console.log.bind(console);
+        const self = this;
+        console.log = (...args: any[]) => {
+            // Call original console.log
+            self.originalConsoleLog(...args);
+
+            // Store message
+            const text = args.map(arg =>
+                typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+            ).join(' ');
+
+            self.consoleMessages.push({
+                time: Date.now(),
+                text: text
+            });
+
+            // Keep only last 200 messages
+            if (self.consoleMessages.length > self.maxConsoleMessages) {
+                self.consoleMessages.shift();
+            }
+        };
+
+        // Add initial message to test
+        console.log('Console log display initialized');
 
         window.addEventListener('resize', () => {
             this.width = window.innerWidth;
@@ -132,10 +159,13 @@ export class Renderer {
 
         this.ctx.restore(); // Undo camera
 
-        // HUD
+        // Draw HUD and Minimap
         this.drawHUD(world);
         this.drawMinimap(world);
-        if (world.bestVehicle && world.bestVehicle.brain) {
+        this.drawConsoleLog();
+
+        // Neural network visualization (only for best vehicle)
+        if (world.bestVehicle && world.bestVehicle.brain && world.bestVehicle.isAlive) {
             this.drawBrain(world.bestVehicle.brain);
         }
     }
@@ -235,6 +265,58 @@ export class Renderer {
         if (world.bestFitnessEver > 0) {
             this.ctx.fillStyle = '#ffff00';
             this.ctx.fillText(`All-Time Best: ${world.bestFitnessEver.toFixed(2)}`, 10, 130);
+        }
+    }
+
+    drawConsoleLog() {
+        const panelWidth = this.width * 0.5; // 50% of screen width
+        const panelHeight = 200;
+        const x = (this.width - panelWidth) / 2; // Center horizontally
+        const y = this.height - panelHeight - 10; // Bottom with 10px margin
+
+        // Semi-transparent background
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.ctx.fillRect(x, y, panelWidth, panelHeight);
+
+        // Border
+        this.ctx.strokeStyle = '#00ff00';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(x, y, panelWidth, panelHeight);
+
+        // Title
+        this.ctx.fillStyle = '#00ff00';
+        this.ctx.font = 'bold 12px monospace';
+        this.ctx.fillText('CONSOLE LOG', x + 5, y + 15);
+
+        // Show message count
+        this.ctx.fillStyle = '#888888';
+        this.ctx.fillText(`(${this.consoleMessages.length} messages)`, x + 120, y + 15);
+
+        // Messages
+        this.ctx.font = '11px monospace';
+        this.ctx.fillStyle = '#ffffff';
+
+        const lineHeight = 14;
+        const maxLines = Math.floor((panelHeight - 25) / lineHeight);
+        const startIndex = Math.max(0, this.consoleMessages.length - maxLines);
+
+        if (this.consoleMessages.length === 0) {
+            this.ctx.fillStyle = '#888888';
+            this.ctx.fillText('No messages yet...', x + 5, y + 35);
+        } else {
+            for (let i = startIndex; i < this.consoleMessages.length; i++) {
+                const msg = this.consoleMessages[i];
+                const lineY = y + 25 + (i - startIndex) * lineHeight;
+
+                // Truncate long messages
+                let text = msg.text;
+                const maxChars = Math.floor(panelWidth / 7); // Approximate chars that fit
+                if (text.length > maxChars) {
+                    text = text.substring(0, maxChars - 3) + '...';
+                }
+
+                this.ctx.fillText(text, x + 5, lineY);
+            }
         }
     }
 
