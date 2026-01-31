@@ -45,6 +45,10 @@ export class Vehicle {
     lapsCompleted: number = 0;
     previousAngularVelocity: number = 0;
 
+    // Stagnation detection
+    lastTrackProgress: number = 0;
+    framesWithoutProgress: number = 0;
+
     constructor(world: RAPIER.World, x: number, y: number, brain?: Brain, id?: number) {
         this.id = id ?? Math.floor(Math.random() * 1000000);
         this.lastPosition = { x, y };
