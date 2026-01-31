@@ -26,6 +26,7 @@ export class Vehicle {
     }[] = [];
 
     brain: Brain;
+    useBrain: boolean = false;
 
     world: RAPIER.World;
 
@@ -82,7 +83,37 @@ export class Vehicle {
                 return 0;
             }
         });
-        Brain.feedForward(inputs, this.brain);
+
+        const outputs = Brain.feedForward(inputs, this.brain);
+
+        if (this.useBrain) {
+            // outputs[0] = Left
+            // outputs[1] = Right
+            // outputs[2] = Forward
+
+            const left = outputs[0];
+            const right = outputs[1];
+            const forward = outputs[2];
+
+            if (forward > 0.5) { // Threshold or just proportional? Let's use proportional for smooth control
+                this.body.applyImpulse({ x: dirX * this.maxForce * 0.016 * forward, y: dirY * this.maxForce * 0.016 * forward }, true);
+            }
+
+            const turn = right - left;
+            this.body.applyTorqueImpulse(turn * this.maxTorque * 0.016, true);
+
+        } else {
+            if (input.isDown('ArrowUp')) {
+                this.body.applyImpulse({ x: dirX * this.maxForce * 0.016, y: dirY * this.maxForce * 0.016 }, true);
+            }
+
+            if (input.isDown('ArrowLeft')) {
+                this.body.applyTorqueImpulse(-this.maxTorque * 0.016, true);
+            }
+            if (input.isDown('ArrowRight')) {
+                this.body.applyTorqueImpulse(this.maxTorque * 0.016, true);
+            }
+        }
     }
 
     updateSensors() {

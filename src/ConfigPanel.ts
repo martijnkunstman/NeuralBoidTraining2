@@ -64,8 +64,12 @@ export class ConfigPanel {
             vehicle.sensorFov = (v * Math.PI) / 180;
         });
 
+        const aiFolder = this.gui.addFolder('AI');
+        aiFolder.add(vehicle, 'useBrain').name('Brain Control');
+
         physicsFolder.open();
         trackFolder.open();
         sensorFolder.open();
+        aiFolder.open();
     }
 }
