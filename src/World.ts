@@ -159,11 +159,13 @@ export class World {
 
             // Check if generation should end
             const aliveCount = this.vehicles.filter(v => v.isAlive).length;
+            const alivePercentage = aliveCount / this.vehicleCount;
             const timeUp = this.generationTimer >= this.generationTime;
             const noImprovementTime = this.generationTimer - this.lastImprovementTime;
             const stagnant = noImprovementTime > GENERATION_CONFIG.NO_IMPROVEMENT_TIMEOUT;
+            const mostDead = alivePercentage <= 0.25; // 75% or more are dead
 
-            if (aliveCount === 0 || timeUp || stagnant) {
+            if (aliveCount === 0 || timeUp || stagnant || mostDead) {
                 this.nextGeneration();
             }
         }
