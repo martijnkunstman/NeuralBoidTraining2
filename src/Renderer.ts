@@ -1,6 +1,5 @@
 import { Vehicle } from './Vehicle';
 import { Brain } from './Brain';
-import { Input } from './Input';
 import { World } from './World';
 
 export class Renderer {
@@ -27,9 +26,8 @@ export class Renderer {
         });
     }
 
-    render(world: World, input: Input) {
-        const vehicle = world.vehicle;
-        if (!vehicle) return;
+    render(world: World) {
+        if (!world.vehicles || world.vehicles.length === 0) return;
 
         // Clear
         this.ctx.fillStyle = '#222';
@@ -124,105 +122,112 @@ export class Renderer {
             }
         }
 
-        // Draw Vehicle if not editing
+        // Draw Vehicles if not editing
         if (world.track && !world.track.isEditing) {
-            this.ctx.save();
-            const { translation, rotation } = vehicle.getTransform();
-            this.ctx.translate(translation.x, translation.y);
-            this.ctx.rotate(rotation);
-
-            // Draw Triangle
-            const vLength = vehicle.length;
-            const vWidth = vehicle.width;
-
-            this.ctx.fillStyle = '#cccccc';
-            this.ctx.beginPath();
-            this.ctx.moveTo(vLength / 2, 0);
-            this.ctx.lineTo(-vLength / 2, vWidth / 2);
-            this.ctx.lineTo(-vLength / 2, -vWidth / 2);
-            this.ctx.closePath();
-            this.ctx.fill();
-
-            // Debug Inputs
-            const pointSize = 0.2;
-            this.ctx.fillStyle = '#00bfff';
-            if (input.isDown('ArrowUp')) {
-                this.ctx.beginPath(); this.ctx.arc(vLength / 2 + 0.5, 0, pointSize, 0, Math.PI * 2); this.ctx.fill();
-            }
-
-            if (input.isDown('ArrowLeft')) {
-                this.ctx.beginPath(); this.ctx.arc(-vLength / 2, -vWidth / 2 - 0.5, pointSize, 0, Math.PI * 2); this.ctx.fill();
-            }
-            if (input.isDown('ArrowRight')) {
-                this.ctx.beginPath(); this.ctx.arc(-vLength / 2, vWidth / 2 + 0.5, pointSize, 0, Math.PI * 2); this.ctx.fill();
-            }
-
-            this.ctx.restore();
-
-            // Draw Velocity Vector
-            const vel = vehicle.getVelocity();
-            const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y);
-            if (speed > 0.1) {
-                this.ctx.save();
-                const { translation } = vehicle.getTransform();
-                this.ctx.translate(translation.x, translation.y);
-                this.ctx.strokeStyle = '#00ff00';
-                this.ctx.lineWidth = 0.2;
-                this.ctx.beginPath();
-                this.ctx.moveTo(0, 0);
-                this.ctx.lineTo(vel.x, vel.y);
-                this.ctx.stroke();
-                this.ctx.restore();
-            }
-
-            // Draw Sensors
-            if (vehicle.sensors && vehicle.sensors.length > 0) {
-                this.ctx.lineWidth = 0.1;
-
-                for (const sensor of vehicle.sensors) {
-                    let alpha = 0.1;
-
-                    if (sensor.hit) {
-                        const dist = Math.min(sensor.hit.distance, vehicle.sensorLength);
-                        const ratio = dist / vehicle.sensorLength;
-                        alpha = 1.0 - (ratio * 0.9);
-                    }
-
-                    this.ctx.strokeStyle = `rgba(255, 255, 0, ${alpha})`;
-
-                    this.ctx.beginPath();
-                    this.ctx.moveTo(sensor.start.x, sensor.start.y);
-                    this.ctx.lineTo(sensor.end.x, sensor.end.y);
-                    this.ctx.stroke();
-
-                    // Draw points at ends
-                    if (sensor.hit) {
-                        this.ctx.fillStyle = '#ff0000';
-                        this.ctx.beginPath();
-                        this.ctx.arc(sensor.end.x, sensor.end.y, 0.3, 0, Math.PI * 2);
-                        this.ctx.fill();
-                    }
-                }
+            for (const vehicle of world.vehicles) {
+                const isBest = vehicle === world.bestVehicle && vehicle.isAlive;
+                this.drawVehicle(vehicle, isBest);
             }
         }
 
         this.ctx.restore(); // Undo camera
 
         // HUD
+        this.drawHUD(world);
+        this.drawMinimap(world);
+        if (world.bestVehicle && world.bestVehicle.brain) {
+            this.drawBrain(world.bestVehicle.brain);
+        }
+    }
+
+    drawVehicle(vehicle: Vehicle, isBest: boolean) {
+        this.ctx.save();
+        const { translation, rotation } = vehicle.getTransform();
+        this.ctx.translate(translation.x, translation.y);
+        this.ctx.rotate(rotation);
+
+        // Draw Triangle
+        const vLength = vehicle.length;
+        const vWidth = vehicle.width;
+
+        // Color based on status
+        if (!vehicle.isAlive) {
+            this.ctx.fillStyle = '#ff0000'; // Red for dead
+        } else if (isBest) {
+            this.ctx.fillStyle = '#00ff00'; // Green for best
+            this.ctx.strokeStyle = '#ffff00'; // Yellow outline
+            this.ctx.lineWidth = 0.3;
+        } else {
+            this.ctx.fillStyle = '#888888'; // Gray for others
+        }
+
+        this.ctx.beginPath();
+        this.ctx.moveTo(vLength / 2, 0);
+        this.ctx.lineTo(-vLength / 2, vWidth / 2);
+        this.ctx.lineTo(-vLength / 2, -vWidth / 2);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        if (isBest && vehicle.isAlive) {
+            this.ctx.stroke();
+        }
+
+        this.ctx.restore();
+
+        // Draw Sensors only for best vehicle if alive
+        if (isBest && vehicle.isAlive && vehicle.sensors && vehicle.sensors.length > 0) {
+            this.ctx.lineWidth = 0.1;
+
+            for (const sensor of vehicle.sensors) {
+                let alpha = 0.1;
+
+                if (sensor.hit) {
+                    const dist = Math.min(sensor.hit.distance, vehicle.sensorLength);
+                    const ratio = dist / vehicle.sensorLength;
+                    alpha = 1.0 - (ratio * 0.9);
+                }
+
+                this.ctx.strokeStyle = `rgba(255, 255, 0, ${alpha})`;
+
+                this.ctx.beginPath();
+                this.ctx.moveTo(sensor.start.x, sensor.start.y);
+                this.ctx.lineTo(sensor.end.x, sensor.end.y);
+                this.ctx.stroke();
+
+                // Draw points at ends
+                if (sensor.hit) {
+                    this.ctx.fillStyle = '#ff0000';
+                    this.ctx.beginPath();
+                    this.ctx.arc(sensor.end.x, sensor.end.y, 0.3, 0, Math.PI * 2);
+                    this.ctx.fill();
+                }
+            }
+        }
+    }
+
+    drawHUD(world: World) {
         this.ctx.fillStyle = 'white';
         this.ctx.font = '16px monospace';
 
-        // Calculate speed even if not drawing vector
-        const vel = vehicle.getVelocity();
-        const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y);
+        const aliveCount = world.vehicles.filter(v => v.isAlive).length;
+        const totalCount = world.vehicles.length;
 
-        this.ctx.fillText(`Speed: ${speed.toFixed(2)}`, 10, 20);
-        const vPos = vehicle.body.translation();
-        this.ctx.fillText(`Pos: ${vPos.x.toFixed(2)}, ${vPos.y.toFixed(2)}`, 10, 40);
+        this.ctx.fillText(`Alive: ${aliveCount} / ${totalCount}`, 10, 20);
 
-        this.drawMinimap(world, vehicle);
-        if (vehicle.brain) {
-            this.drawBrain(vehicle.brain);
+        if (world.bestVehicle) {
+            const bestFitness = world.bestVehicle.distanceTraveled;
+            this.ctx.fillText(`Best Fitness: ${bestFitness.toFixed(2)}`, 10, 40);
+            this.ctx.fillText(`Best ID: #${world.bestVehicle.id}`, 10, 60);
+
+            const vel = world.bestVehicle.getVelocity();
+            const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y);
+            this.ctx.fillText(`Best Speed: ${speed.toFixed(2)}`, 10, 80);
+        }
+
+        if (!world.simulationRunning) {
+            this.ctx.fillStyle = '#ff0000';
+            this.ctx.font = 'bold 24px monospace';
+            this.ctx.fillText('SIMULATION COMPLETE', 10, 120);
         }
     }
 
@@ -256,7 +261,7 @@ export class Renderer {
         this.ctx.stroke();
     }
 
-    drawMinimap(world: World, vehicle: Vehicle) {
+    drawMinimap(world: World) {
         const miniMapSize = 150;
         const padding = 20;
         const x = this.width - miniMapSize - padding;
@@ -271,15 +276,8 @@ export class Renderer {
 
         const worldW = world.width;
         const worldH = world.height;
-        const vPos = vehicle.body.translation();
 
         // Helper to map world to minimap
-        // Need to know world bounds? 
-        // World width/height in World.ts are usually just for wrap or bounds?
-        // Assuming world is centered or 0..width? 
-        // Let's check World.ts... 
-        // Assuming default world size logic from World.ts
-
         const mapX = (wx: number) => x + ((wx + worldW / 2) / worldW) * miniMapSize;
         const mapY = (wy: number) => y + ((wy + worldH / 2) / worldH) * miniMapSize;
 
@@ -304,18 +302,41 @@ export class Renderer {
             }
         }
 
-        // Draw Vehicle dot
-        let dotX = mapX(vPos.x);
-        let dotY = mapY(vPos.y);
+        // Draw all vehicles on minimap
+        for (const vehicle of world.vehicles) {
+            const vPos = vehicle.body.translation();
+            let dotX = mapX(vPos.x);
+            let dotY = mapY(vPos.y);
 
-        // Clamp to minimap
-        dotX = Math.max(x, Math.min(x + miniMapSize, dotX));
-        dotY = Math.max(y, Math.min(y + miniMapSize, dotY));
+            // Clamp to minimap
+            dotX = Math.max(x, Math.min(x + miniMapSize, dotX));
+            dotY = Math.max(y, Math.min(y + miniMapSize, dotY));
 
-        this.ctx.fillStyle = '#dddddd';
-        this.ctx.beginPath();
-        this.ctx.arc(dotX, dotY, 3, 0, Math.PI * 2);
-        this.ctx.fill();
+            // Color based on status
+            if (!vehicle.isAlive) {
+                this.ctx.fillStyle = '#ff0000'; // Red for dead
+                this.ctx.beginPath();
+                this.ctx.arc(dotX, dotY, 1, 0, Math.PI * 2);
+                this.ctx.fill();
+            } else if (vehicle === world.bestVehicle) {
+                this.ctx.fillStyle = '#00ff00'; // Green for best
+                this.ctx.beginPath();
+                this.ctx.arc(dotX, dotY, 4, 0, Math.PI * 2);
+                this.ctx.fill();
+
+                // Add ring around best
+                this.ctx.strokeStyle = '#ffff00';
+                this.ctx.lineWidth = 1;
+                this.ctx.beginPath();
+                this.ctx.arc(dotX, dotY, 6, 0, Math.PI * 2);
+                this.ctx.stroke();
+            } else {
+                this.ctx.fillStyle = '#888888'; // Gray for others
+                this.ctx.beginPath();
+                this.ctx.arc(dotX, dotY, 2, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+        }
     }
 
     drawBrain(brain: Brain) {

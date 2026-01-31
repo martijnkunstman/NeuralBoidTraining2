@@ -8,7 +8,12 @@ export class ConfigPanel {
     constructor(world: World) {
         this.world = world;
         this.gui = new GUI();
-        const vehicle = this.world.vehicle;
+
+        // Use first vehicle as reference for configuration
+        const vehicle = this.world.vehicles[0];
+
+        // Only create config if we have vehicles
+        if (!vehicle) return;
 
         const physicsFolder = this.gui.addFolder('Physics');
 

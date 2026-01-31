@@ -5,12 +5,16 @@ import { Track } from './Track';
 
 export class World {
     rapierWorld: RAPIER.World;
-    vehicle!: Vehicle;
+    vehicles: Vehicle[] = [];
+    bestVehicle: Vehicle | null = null;
     track!: Track;
     width = 400; // Increased world size for track
     height = 400;
     eventQueue: RAPIER.EventQueue;
     camera = { x: 0, y: 0, zoom: 10 };
+
+    vehicleCount = 50;
+    simulationRunning = true;
 
     constructor(gravity = { x: 0, y: 0 }) {
         this.rapierWorld = new RAPIER.World(gravity);
@@ -19,13 +23,20 @@ export class World {
 
     init() {
         this.track = new Track(this.rapierWorld);
-        this.vehicle = new Vehicle(this.rapierWorld, this.track.startPos.x, this.track.startPos.y);
+
+        // Create 50 vehicles with random brains
+        for (let i = 0; i < this.vehicleCount; i++) {
+            const vehicle = new Vehicle(this.rapierWorld, this.track.startPos.x, this.track.startPos.y);
+            this.vehicles.push(vehicle);
+        }
+
+        this.bestVehicle = this.vehicles[0];
         this.camera.x = this.track.startPos.x;
         this.camera.y = this.track.startPos.y;
     }
 
     update(input: Input) {
-        if (!this.vehicle) return;
+        if (!this.simulationRunning) return;
 
         // Handle Track Editing vs Play Mode
         if (this.track && this.track.isEditing) {
@@ -43,29 +54,74 @@ export class World {
 
             this.track.update(input, { x: worldMouseX, y: worldMouseY });
         } else {
-            // Play Mode: Camera follows vehicle
-            const vPos = this.vehicle.body.translation();
-            this.camera.x = vPos.x;
-            this.camera.y = vPos.y;
+            // Play Mode: Update all vehicles
+            // Collect all vehicle colliders to exclude from sensors
+            const vehicleColliders = this.vehicles.map(v => v.collider);
 
-            this.vehicle.update(input);
+            for (const vehicle of this.vehicles) {
+                if (!vehicle.isAlive) continue;
+
+                vehicle.update(input, vehicleColliders);
+
+                // Check if vehicle is off track (collision detection)
+                // This is now handled by Rapier's collision events, so this check is removed.
+                // const pos = vehicle.body.translation();
+                // if (this.track && !this.track.isPointOnTrack(pos.x, pos.y)) {
+                //     vehicle.isAlive = false;
+                // }
+            }
+
+            // Find best vehicle (highest fitness among alive vehicles)
+            let bestFitness = -1;
+            for (const vehicle of this.vehicles) {
+                if (vehicle.isAlive && vehicle.distanceTraveled > bestFitness) {
+                    bestFitness = vehicle.distanceTraveled;
+                    this.bestVehicle = vehicle;
+                }
+            }
+
+            // Camera follows best vehicle
+            if (this.bestVehicle && this.bestVehicle.isAlive) {
+                const vPos = this.bestVehicle.body.translation();
+                this.camera.x = vPos.x;
+                this.camera.y = vPos.y;
+            }
+
+            // Check if all vehicles are dead
+            const aliveCount = this.vehicles.filter(v => v.isAlive).length;
+            if (aliveCount === 0) {
+                this.simulationRunning = false;
+                console.log('Simulation complete! All vehicles dead.');
+            }
         }
 
         this.rapierWorld.step(this.eventQueue);
 
-        // Smart Collision: Distance Check
-        const pos = this.vehicle.body.translation();
-        if (this.track && !this.track.isPointOnTrack(pos.x, pos.y)) {
-            // Off track!
-            this.resetVehicle();
-        }
+        // Process collision events to detect wall hits
+        this.eventQueue.drainCollisionEvents((handle1, handle2, started) => {
+            if (!started) return; // Only care about collision start
+
+            // Check if this collision involves a vehicle and a wall
+            for (const vehicle of this.vehicles) {
+                if (!vehicle.isAlive) continue;
+
+                const vehicleHandle = vehicle.collider.handle;
+
+                // Check if vehicle is involved in this collision
+                if (handle1 === vehicleHandle || handle2 === vehicleHandle) {
+                    // Vehicle collided with something
+                    // Since vehicles don't collide with each other (due to collision groups),
+                    // this must be a wall collision
+                    console.log(`Vehicle #${vehicle.id} died! Collision with wall.`);
+                    vehicle.isAlive = false;
+                    break;
+                }
+            }
+        });
     }
 
     resetVehicle() {
-        this.vehicle.body.setTranslation(this.track.startPos, true);
-        this.vehicle.body.setLinvel({ x: 0, y: 0 }, true);
-        this.vehicle.body.setAngvel(0, true);
-        this.vehicle.body.setRotation(0, true);
+        // Not used in this simulation mode
     }
 
 }

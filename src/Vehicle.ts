@@ -26,11 +26,21 @@ export class Vehicle {
     }[] = [];
 
     brain: Brain;
-    useBrain: boolean = false;
+    useBrain: boolean = true; // Enable brain control by default
 
     world: RAPIER.World;
 
+    // Fitness tracking
+    distanceTraveled: number = 0;
+    lastPosition: { x: number, y: number } = { x: 0, y: 0 };
+    isAlive: boolean = true;
+    id: number;
+
+    private static nextId = 0;
+
     constructor(world: RAPIER.World, x: number, y: number) {
+        this.id = Vehicle.nextId++;
+        this.lastPosition = { x, y };
         this.brain = new Brain(this.sensorCount, [12, 6], 3); // 9 inputs, 12 hidden, 6 hidden, 3 outputs
 
         this.world = world;
@@ -52,10 +62,28 @@ export class Vehicle {
             { x: -this.length / 2, y: -this.width / 2 }
         );
 
+        // Set collision groups: vehicles (group bit 1) collide with walls (group bit 0) but not each other
+        // Format: upper 16 bits = filter (what to collide with), lower 16 bits = membership (what group I'm in)
+        // Vehicles: membership = 0x0002 (bit 1), filter = 0x0001 (bit 0 - only walls)
+        colliderDesc.setCollisionGroups(0x00010002);
+
+        // Enable collision events so we can detect wall hits
+        colliderDesc.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
+
         this.collider = world.createCollider(colliderDesc, this.body);
     }
 
-    update(input: Input) {
+    update(input: Input, excludeColliders?: RAPIER.Collider[]) {
+        if (!this.isAlive) return;
+
+        // Track distance traveled
+        const pos = this.body.translation();
+        const dx = pos.x - this.lastPosition.x;
+        const dy = pos.y - this.lastPosition.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        this.distanceTraveled += distance;
+        this.lastPosition = { x: pos.x, y: pos.y };
+
         // Controls: ArrowUp (Accelerate), ArrowDown (Brake/Reverse), ArrowLeft/Right (Steer)
         const rotation = this.body.rotation();
 
@@ -63,19 +91,7 @@ export class Vehicle {
         const dirX = Math.cos(rotation);
         const dirY = Math.sin(rotation);
 
-        if (input.isDown('ArrowUp')) {
-            this.body.applyImpulse({ x: dirX * this.maxForce * 0.016, y: dirY * this.maxForce * 0.016 }, true);
-        }
-
-
-        if (input.isDown('ArrowLeft')) {
-            this.body.applyTorqueImpulse(-this.maxTorque * 0.016, true);
-        }
-        if (input.isDown('ArrowRight')) {
-            this.body.applyTorqueImpulse(this.maxTorque * 0.016, true);
-        }
-
-        this.updateSensors();
+        this.updateSensors(excludeColliders);
         const inputs = this.sensors.map(s => {
             if (s.hit) {
                 return 1 - (s.hit.distance / this.sensorLength);
@@ -116,7 +132,7 @@ export class Vehicle {
         }
     }
 
-    updateSensors() {
+    updateSensors(excludeColliders?: RAPIER.Collider[]) {
         this.sensors = [];
         const { translation, rotation } = this.getTransform();
 
@@ -140,32 +156,53 @@ export class Vehicle {
             let endY = startY + dy * this.sensorLength;
             let hitData = undefined;
 
-            // Raycast
-            // Exclude self (optional but good practice, though ray starts inside? Rapier rays don't hit start point usually unless solid?)
-            // We can just cast. If we hit our own collider immediately, we might need a filter.
-            // But we created a triangle collider. Ray starts at center (0,0 relative).
-            // Let's rely on filter or starting slightly outside?
-            // Starting at center is risky if we hit ourselves.
-            // Rapier default filter includes everything.
-
             const ray = new RAPIER.Ray({ x: startX, y: startY }, { x: dx, y: dy });
             const maxToi = this.sensorLength;
             const solid = true;
 
-            // Filter: exclude this vehicle's collider
-            // QueryFilter: (groups, excludeCollider, excludeBody)
-            // We can exclude our own collider.
+            // Find closest hit that isn't a vehicle
+            let minToi = maxToi;
+            let foundHit = false;
 
-            const hit = this.world.castRay(ray, maxToi, solid, undefined, undefined, this.collider, this.body);
+            this.world.intersectionsWithRay(ray, maxToi, solid, (intersection) => {
+                const collider = intersection.collider;
 
-            if (hit) {
-                const toi = hit.toi; // Time of impact (distance)
-                endX = startX + dx * toi;
-                endY = startY + dy * toi;
+                // Skip self collider
+                if (collider.handle === this.collider.handle) {
+                    return true; // Continue
+                }
+
+                // Skip other vehicle colliders if provided
+                if (excludeColliders) {
+                    let shouldSkip = false;
+                    for (const excludeCollider of excludeColliders) {
+                        if (collider.handle === excludeCollider.handle) {
+                            shouldSkip = true;
+                            break;
+                        }
+                    }
+                    if (shouldSkip) {
+                        return true; // Continue
+                    }
+                }
+
+                // This is a wall hit
+                const toi = intersection.toi;
+                if (toi < minToi) {
+                    minToi = toi;
+                    foundHit = true;
+                }
+
+                return true; // Continue checking other colliders
+            });
+
+            if (foundHit) {
+                endX = startX + dx * minToi;
+                endY = startY + dy * minToi;
                 hitData = {
                     x: endX,
                     y: endY,
-                    distance: toi
+                    distance: minToi
                 };
             }
 
