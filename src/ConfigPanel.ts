@@ -71,6 +71,7 @@ export class ConfigPanel {
 
         const aiFolder = this.gui.addFolder('AI');
         aiFolder.add(vehicle, 'useBrain').name('Brain Control');
+        aiFolder.add(vehicle, 'useAutosteer').name('Autosteer (Centerline)');
 
         const gaFolder = this.gui.addFolder('Genetic Algorithm');
         gaFolder.add(this.world, 'generationTime', 10, 120).name('Gen Time (s)');

@@ -578,7 +578,7 @@ export class Renderer {
             ? history.slice(-maxGenerations)
             : history;
 
-        if (displayData.length < 2) return;
+        if (displayData.length < 1) return; // Show graph with just 1 generation
 
         // Find min and max fitness for scaling
         const allFitness = displayData.flatMap((h: any) => [h.bestFitness, h.avgFitness, h.avgTop10]);
