@@ -160,6 +160,7 @@ export class Renderer {
         this.ctx.restore(); // Undo camera
 
         // Draw HUD and Minimap
+        this.drawPerformanceGraph(world);
         this.drawHUD(world);
         this.drawMinimap(world);
         this.drawConsoleLog();
@@ -545,6 +546,135 @@ export class Renderer {
                 this.ctx.fillText(labels[k], pos.x + 10, pos.y + 3);
             }
         }
+    }
+
+    drawPerformanceGraph(world: any) {
+        if (!world.generationHistory || world.generationHistory.length === 0) return;
+
+        const graphWidth = 400;
+        const graphHeight = 150;
+        const padding = 20;
+        const x = (this.width - graphWidth) / 2;
+        const y = 10;
+
+        // Background
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.ctx.fillRect(x, y, graphWidth, graphHeight);
+
+        // Border
+        this.ctx.strokeStyle = '#00ff00';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(x, y, graphWidth, graphHeight);
+
+        // Title
+        this.ctx.fillStyle = '#00ff00';
+        this.ctx.font = 'bold 14px monospace';
+        this.ctx.fillText('Generation Performance', x + 10, y + 15);
+
+        // Get data
+        const history = world.generationHistory;
+        const maxGenerations = 50; // Show last 50 generations
+        const displayData = history.length > maxGenerations
+            ? history.slice(-maxGenerations)
+            : history;
+
+        if (displayData.length < 2) return;
+
+        // Find min and max fitness for scaling
+        const allFitness = displayData.flatMap((h: any) => [h.bestFitness, h.avgFitness, h.avgTop10]);
+        const minFitness = Math.min(...allFitness);
+        const maxFitness = Math.max(...allFitness);
+        const fitnessRange = maxFitness - minFitness || 1;
+
+        // Graph area
+        const graphX = x + padding;
+        const graphY = y + 30;
+        const graphInnerWidth = graphWidth - padding * 2;
+        const graphInnerHeight = graphHeight - 50;
+
+        // Helper function to map data to graph coordinates
+        const mapX = (index: number) => {
+            return graphX + (index / (displayData.length - 1)) * graphInnerWidth;
+        };
+        const mapY = (fitness: number) => {
+            const normalized = (fitness - minFitness) / fitnessRange;
+            return graphY + graphInnerHeight - (normalized * graphInnerHeight);
+        };
+
+        // Draw grid lines
+        this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.1)';
+        this.ctx.lineWidth = 1;
+        for (let i = 0; i <= 4; i++) {
+            const gridY = graphY + (graphInnerHeight / 4) * i;
+            this.ctx.beginPath();
+            this.ctx.moveTo(graphX, gridY);
+            this.ctx.lineTo(graphX + graphInnerWidth, gridY);
+            this.ctx.stroke();
+        }
+
+        // Draw lines
+        const drawLine = (color: string, dataKey: string) => {
+            this.ctx.strokeStyle = color;
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+
+            displayData.forEach((point: any, i: number) => {
+                const px = mapX(i);
+                const py = mapY(point[dataKey]);
+
+                if (i === 0) {
+                    this.ctx.moveTo(px, py);
+                } else {
+                    this.ctx.lineTo(px, py);
+                }
+            });
+
+            this.ctx.stroke();
+        };
+
+        // Draw average (gray)
+        drawLine('rgba(128, 128, 128, 0.8)', 'avgFitness');
+
+        // Draw top 10 average (yellow)
+        drawLine('rgba(255, 255, 0, 0.8)', 'avgTop10');
+
+        // Draw best (bright green)
+        drawLine('#00ff00', 'bestFitness');
+
+        // Legend
+        this.ctx.font = '10px monospace';
+        const legendX = x + graphWidth - 110;
+        const legendY = y + 45;
+
+        this.ctx.fillStyle = '#00ff00';
+        this.ctx.fillRect(legendX, legendY, 10, 2);
+        this.ctx.fillStyle = '#00ff00';
+        this.ctx.fillText('Best', legendX + 15, legendY + 5);
+
+        this.ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
+        this.ctx.fillRect(legendX, legendY + 15, 10, 2);
+        this.ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
+        this.ctx.fillText('Top 10', legendX + 15, legendY + 20);
+
+        this.ctx.fillStyle = 'rgba(128, 128, 128, 0.8)';
+        this.ctx.fillRect(legendX, legendY + 30, 10, 2);
+        this.ctx.fillStyle = 'rgba(128, 128, 128, 0.8)';
+        this.ctx.fillText('Average', legendX + 15, legendY + 35);
+
+        // Current stats
+        const latest = displayData[displayData.length - 1];
+        this.ctx.fillStyle = '#00ff00';
+        this.ctx.font = '11px monospace';
+        this.ctx.fillText(`Gen ${latest.gen}`, x + 10, y + graphHeight - 25);
+        this.ctx.fillText(`Best: ${latest.bestFitness.toFixed(1)}`, x + 10, y + graphHeight - 10);
+        this.ctx.fillText(`Avg: ${latest.avgFitness.toFixed(1)}`, x + 100, y + graphHeight - 10);
+        this.ctx.fillText(`Top10: ${latest.avgTop10.toFixed(1)}`, x + 200, y + graphHeight - 10);
+
+        // Y-axis labels
+        this.ctx.fillStyle = '#00ff00';
+        this.ctx.font = '9px monospace';
+        this.ctx.fillText(maxFitness.toFixed(0), x + 5, graphY + 5);
+        this.ctx.fillText(minFitness.toFixed(0), x + 5, graphY + graphInnerHeight);
     }
 }
 

@@ -54,6 +54,27 @@ export class World {
             }
         }
 
+        // Load generation history from localStorage
+        const savedHistory = localStorage.getItem('generationHistory');
+        if (savedHistory) {
+            try {
+                const historyData = JSON.parse(savedHistory);
+                if (Array.isArray(historyData) && historyData.length > 0) {
+                    this.generationHistory = historyData;
+
+                    // Resume from last generation
+                    const lastGen = historyData[historyData.length - 1];
+                    this.generation = lastGen.gen + 1;
+                    this.bestFitnessEver = Math.max(...historyData.map(h => h.bestFitness));
+
+                    console.log(`📊 Loaded ${historyData.length} generations from localStorage`);
+                    console.log(`🔄 Resuming from generation ${this.generation}`);
+                }
+            } catch (e) {
+                console.error('Failed to load generation history', e);
+            }
+        }
+
         this.spawnGeneration();
     }
 
@@ -226,10 +247,9 @@ export class World {
             avgTop10
         });
 
-        // Save history periodically
-        if (this.generation % 10 === 0) {
-            localStorage.setItem('generationHistory', JSON.stringify(this.generationHistory));
-        }
+
+        // Save history to localStorage every generation for persistent progress tracking
+        localStorage.setItem('generationHistory', JSON.stringify(this.generationHistory));
 
         console.log(`Gen ${this.generation}: Best=${bestFitness.toFixed(1)} Avg=${avgFitness.toFixed(1)} AvgTop10=${avgTop10.toFixed(1)} AllTime=${this.bestFitnessEver.toFixed(1)}`);
 
