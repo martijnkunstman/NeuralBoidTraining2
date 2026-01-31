@@ -212,22 +212,29 @@ export class Renderer {
         const aliveCount = world.vehicles.filter(v => v.isAlive).length;
         const totalCount = world.vehicles.length;
 
-        this.ctx.fillText(`Alive: ${aliveCount} / ${totalCount}`, 10, 20);
+        // Generation info
+        this.ctx.fillText(`Generation: ${world.generation}`, 10, 20);
+
+        // Timer
+        const timeLeft = Math.max(0, world.generationTime - world.generationTimer);
+        this.ctx.fillText(`Time: ${timeLeft.toFixed(1)}s`, 10, 40);
+
+        // Alive count
+        this.ctx.fillText(`Alive: ${aliveCount} / ${totalCount}`, 10, 60);
 
         if (world.bestVehicle) {
             const bestFitness = world.bestVehicle.distanceTraveled;
-            this.ctx.fillText(`Best Fitness: ${bestFitness.toFixed(2)}`, 10, 40);
-            this.ctx.fillText(`Best ID: #${world.bestVehicle.id}`, 10, 60);
+            this.ctx.fillText(`Best: ${bestFitness.toFixed(2)}`, 10, 80);
 
             const vel = world.bestVehicle.getVelocity();
             const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y);
-            this.ctx.fillText(`Best Speed: ${speed.toFixed(2)}`, 10, 80);
+            this.ctx.fillText(`Speed: ${speed.toFixed(2)}`, 10, 100);
         }
 
-        if (!world.simulationRunning) {
-            this.ctx.fillStyle = '#ff0000';
-            this.ctx.font = 'bold 24px monospace';
-            this.ctx.fillText('SIMULATION COMPLETE', 10, 120);
+        // All-time best
+        if (world.bestFitnessEver > 0) {
+            this.ctx.fillStyle = '#ffff00';
+            this.ctx.fillText(`All-Time Best: ${world.bestFitnessEver.toFixed(2)}`, 10, 130);
         }
     }
 

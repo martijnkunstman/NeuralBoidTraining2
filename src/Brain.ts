@@ -24,6 +24,29 @@ export class Brain {
         }
         return outputs;
     }
+
+    // Clone this brain
+    clone(): Brain {
+        const cloned = Object.create(Object.getPrototypeOf(this));
+        cloned.levels = this.levels.map(level => level.clone());
+        return cloned;
+    }
+
+    // Mutate brain weights and biases
+    static mutate(brain: Brain, mutationRate: number = 0.1): void {
+        for (const level of brain.levels) {
+            Level.mutate(level, mutationRate);
+        }
+    }
+
+    // Crossover two brains to create offspring
+    static crossover(parent1: Brain, parent2: Brain): Brain {
+        const child = parent1.clone();
+        for (let i = 0; i < child.levels.length; i++) {
+            child.levels[i] = Level.crossover(parent1.levels[i], parent2.levels[i]);
+        }
+        return child;
+    }
 }
 
 export class Level {
@@ -75,5 +98,71 @@ export class Level {
         }
 
         return level.outputs;
+    }
+
+    // Clone this level
+    clone(): Level {
+        const cloned = Object.create(Object.getPrototypeOf(this));
+        cloned.inputs = [...this.inputs];
+        cloned.outputs = [...this.outputs];
+        cloned.biases = [...this.biases];
+        cloned.weights = this.weights.map(row => [...row]);
+        return cloned;
+    }
+
+    // Mutate level weights and biases
+    static mutate(level: Level, mutationRate: number): void {
+        // Mutate weights
+        for (let i = 0; i < level.weights.length; i++) {
+            for (let j = 0; j < level.weights[i].length; j++) {
+                if (Math.random() < mutationRate) {
+                    // Random mutation: either small adjustment or complete randomization
+                    if (Math.random() < 0.5) {
+                        // Small adjustment
+                        level.weights[i][j] += (Math.random() * 2 - 1) * 0.5;
+                        // Clamp to -1 to 1
+                        level.weights[i][j] = Math.max(-1, Math.min(1, level.weights[i][j]));
+                    } else {
+                        // Complete randomization
+                        level.weights[i][j] = Math.random() * 2 - 1;
+                    }
+                }
+            }
+        }
+
+        // Mutate biases
+        for (let i = 0; i < level.biases.length; i++) {
+            if (Math.random() < mutationRate) {
+                if (Math.random() < 0.5) {
+                    level.biases[i] += (Math.random() * 2 - 1) * 0.5;
+                    level.biases[i] = Math.max(-1, Math.min(1, level.biases[i]));
+                } else {
+                    level.biases[i] = Math.random() * 2 - 1;
+                }
+            }
+        }
+    }
+
+    // Crossover two levels
+    static crossover(parent1: Level, parent2: Level): Level {
+        const child = parent1.clone();
+
+        // Crossover weights - randomly pick from either parent
+        for (let i = 0; i < child.weights.length; i++) {
+            for (let j = 0; j < child.weights[i].length; j++) {
+                if (Math.random() < 0.5) {
+                    child.weights[i][j] = parent2.weights[i][j];
+                }
+            }
+        }
+
+        // Crossover biases
+        for (let i = 0; i < child.biases.length; i++) {
+            if (Math.random() < 0.5) {
+                child.biases[i] = parent2.biases[i];
+            }
+        }
+
+        return child;
     }
 }

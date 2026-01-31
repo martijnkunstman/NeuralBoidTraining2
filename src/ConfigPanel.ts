@@ -72,9 +72,28 @@ export class ConfigPanel {
         const aiFolder = this.gui.addFolder('AI');
         aiFolder.add(vehicle, 'useBrain').name('Brain Control');
 
+        const gaFolder = this.gui.addFolder('Genetic Algorithm');
+        gaFolder.add(this.world, 'generationTime', 10, 120).name('Gen Time (s)');
+        gaFolder.add(this.world, 'mutationRate', 0, 1, 0.01).name('Mutation Rate');
+        gaFolder.add(this.world, 'eliteCount', 1, 20, 1).name('Elite Count');
+
+        const gaActions = {
+            resetTraining: () => {
+                localStorage.removeItem('bestBrain');
+                this.world.bestBrainEver = null;
+                this.world.bestFitnessEver = 0;
+                this.world.generation = 1;
+                this.world.generationHistory = [];
+                this.world.spawnGeneration();
+                console.log('Training reset!');
+            }
+        };
+        gaFolder.add(gaActions, 'resetTraining').name('Reset Training');
+
         physicsFolder.open();
         trackFolder.open();
         sensorFolder.open();
         aiFolder.open();
+        gaFolder.open();
     }
 }

@@ -2,6 +2,7 @@ import RAPIER from '@dimforge/rapier2d-compat';
 import { Vehicle } from './Vehicle';
 import { Input } from './Input';
 import { Track } from './Track';
+import { Brain } from './Brain';
 
 export class World {
     rapierWorld: RAPIER.World;
@@ -16,6 +17,17 @@ export class World {
     vehicleCount = 50;
     simulationRunning = true;
 
+    // Genetic Algorithm properties
+    generation = 1;
+    generationTime = 30; // seconds per generation
+    generationTimer = 0; // current time in generation
+    eliteCount = 5; // number of top performers to keep
+    mutationRate = 0.1; // 10% mutation chance
+
+    bestBrainEver: Brain | null = null;
+    bestFitnessEver = 0;
+    generationHistory: { gen: number, bestFitness: number }[] = [];
+
     constructor(gravity = { x: 0, y: 0 }) {
         this.rapierWorld = new RAPIER.World(gravity);
         this.eventQueue = new RAPIER.EventQueue(true);
@@ -24,13 +36,59 @@ export class World {
     init() {
         this.track = new Track(this.rapierWorld);
 
-        // Create 50 vehicles with random brains
-        for (let i = 0; i < this.vehicleCount; i++) {
-            const vehicle = new Vehicle(this.rapierWorld, this.track.startPos.x, this.track.startPos.y);
-            this.vehicles.push(vehicle);
+        // Try to load best brain from localStorage
+        const savedBrain = localStorage.getItem('bestBrain');
+        if (savedBrain) {
+            try {
+                const brainData = JSON.parse(savedBrain);
+                this.bestBrainEver = this.deserializeBrain(brainData);
+                console.log('Loaded best brain from localStorage');
+            } catch (e) {
+                console.error('Failed to load best brain', e);
+            }
+        }
+
+        this.spawnGeneration();
+    }
+
+    spawnGeneration(parentBrains?: Brain[]) {
+        // Clear existing vehicles
+        for (const vehicle of this.vehicles) {
+            this.rapierWorld.removeRigidBody(vehicle.body);
+        }
+        this.vehicles = [];
+
+        if (!parentBrains || parentBrains.length === 0) {
+            // First generation: random brains
+            for (let i = 0; i < this.vehicleCount; i++) {
+                const vehicle = new Vehicle(this.rapierWorld, this.track.startPos.x, this.track.startPos.y, undefined, i);
+                this.vehicles.push(vehicle);
+            }
+        } else {
+            // Create new generation from parents
+            for (let i = 0; i < this.vehicleCount; i++) {
+                let brain: Brain;
+
+                if (i < this.eliteCount) {
+                    // Elite: copy best performers directly
+                    brain = parentBrains[i].clone();
+                } else {
+                    // Breeding: select two random parents and cross them over
+                    const parent1 = parentBrains[Math.floor(Math.random() * parentBrains.length)];
+                    const parent2 = parentBrains[Math.floor(Math.random() * parentBrains.length)];
+                    brain = Brain.crossover(parent1, parent2);
+
+                    // Mutate offspring
+                    Brain.mutate(brain, this.mutationRate);
+                }
+
+                const vehicle = new Vehicle(this.rapierWorld, this.track.startPos.x, this.track.startPos.y, brain, i);
+                this.vehicles.push(vehicle);
+            }
         }
 
         this.bestVehicle = this.vehicles[0];
+        this.generationTimer = 0;
         this.camera.x = this.track.startPos.x;
         this.camera.y = this.track.startPos.y;
     }
@@ -48,13 +106,14 @@ export class World {
             if (input.isDown('ArrowRight')) this.camera.x += panSpeed;
 
             // Mouse to World Conversion using Camera
-            // WorldX = (ScreenX - HalfWidth) / Zoom + CameraX
             const worldMouseX = (input.mouseX - window.innerWidth / 2) / this.camera.zoom + this.camera.x;
             const worldMouseY = (input.mouseY - window.innerHeight / 2) / this.camera.zoom + this.camera.y;
 
             this.track.update(input, { x: worldMouseX, y: worldMouseY });
         } else {
             // Play Mode: Update all vehicles
+            this.generationTimer += 1 / 60; // Assuming 60 FPS
+
             // Collect all vehicle colliders to exclude from sensors
             const vehicleColliders = this.vehicles.map(v => v.collider);
 
@@ -62,13 +121,6 @@ export class World {
                 if (!vehicle.isAlive) continue;
 
                 vehicle.update(input, vehicleColliders);
-
-                // Check if vehicle is off track (collision detection)
-                // This is now handled by Rapier's collision events, so this check is removed.
-                // const pos = vehicle.body.translation();
-                // if (this.track && !this.track.isPointOnTrack(pos.x, pos.y)) {
-                //     vehicle.isAlive = false;
-                // }
             }
 
             // Find best vehicle (highest fitness among alive vehicles)
@@ -87,11 +139,12 @@ export class World {
                 this.camera.y = vPos.y;
             }
 
-            // Check if all vehicles are dead
+            // Check if generation time is up or all vehicles dead
             const aliveCount = this.vehicles.filter(v => v.isAlive).length;
-            if (aliveCount === 0) {
-                this.simulationRunning = false;
-                console.log('Simulation complete! All vehicles dead.');
+            const timeUp = this.generationTimer >= this.generationTime;
+
+            if (aliveCount === 0 || timeUp) {
+                this.nextGeneration();
             }
         }
 
@@ -112,12 +165,63 @@ export class World {
                     // Vehicle collided with something
                     // Since vehicles don't collide with each other (due to collision groups),
                     // this must be a wall collision
-                    console.log(`Vehicle #${vehicle.id} died! Collision with wall.`);
                     vehicle.isAlive = false;
                     break;
                 }
             }
         });
+    }
+
+    nextGeneration() {
+        // Sort vehicles by fitness (distance traveled)
+        const sorted = [...this.vehicles].sort((a, b) => b.distanceTraveled - a.distanceTraveled);
+
+        const bestFitness = sorted[0].distanceTraveled;
+
+        // Update all-time best
+        if (bestFitness > this.bestFitnessEver) {
+            this.bestFitnessEver = bestFitness;
+            this.bestBrainEver = sorted[0].brain.clone();
+
+            // Save to localStorage
+            localStorage.setItem('bestBrain', JSON.stringify(this.serializeBrain(this.bestBrainEver)));
+            console.log(`New best brain! Fitness: ${bestFitness.toFixed(2)}`);
+        }
+
+        // Record generation stats
+        this.generationHistory.push({ gen: this.generation, bestFitness });
+
+        console.log(`Generation ${this.generation} complete! Best: ${bestFitness.toFixed(2)}, All-time: ${this.bestFitnessEver.toFixed(2)}`);
+
+        // Select parent brains for next generation
+        const parentBrains = sorted.slice(0, Math.max(this.eliteCount, 10)).map(v => v.brain);
+
+        // Increment generation counter
+        this.generation++;
+
+        // Spawn next generation
+        this.spawnGeneration(parentBrains);
+    }
+
+    serializeBrain(brain: Brain): any {
+        return {
+            levels: brain.levels.map(level => ({
+                weights: level.weights,
+                biases: level.biases
+            }))
+        };
+    }
+
+    deserializeBrain(data: any): Brain {
+        const brain = new Brain(9, [12, 6], 3); // Match vehicle brain structure
+
+        for (let i = 0; i < brain.levels.length && i < data.levels.length; i++) {
+            const levelData = data.levels[i];
+            brain.levels[i].weights = levelData.weights;
+            brain.levels[i].biases = levelData.biases;
+        }
+
+        return brain;
     }
 
     resetVehicle() {

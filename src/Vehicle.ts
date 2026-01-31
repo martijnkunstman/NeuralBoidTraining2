@@ -36,12 +36,16 @@ export class Vehicle {
     isAlive: boolean = true;
     id: number;
 
-    private static nextId = 0;
-
-    constructor(world: RAPIER.World, x: number, y: number) {
-        this.id = Vehicle.nextId++;
+    constructor(world: RAPIER.World, x: number, y: number, brain?: Brain, id?: number) {
+        this.id = id ?? Math.floor(Math.random() * 1000000);
         this.lastPosition = { x, y };
-        this.brain = new Brain(this.sensorCount, [12, 6], 3); // 9 inputs, 12 hidden, 6 hidden, 3 outputs
+
+        // Use provided brain or create new random one
+        if (brain) {
+            this.brain = brain;
+        } else {
+            this.brain = new Brain(this.sensorCount, [12, 6], 3); // 9 inputs, 12 hidden, 6 hidden, 3 outputs
+        }
 
         this.world = world;
         const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
