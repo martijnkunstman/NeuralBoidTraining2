@@ -18,6 +18,7 @@ async function main() {
     function loop() {
         world.update(input);
         renderer.render(world, input);
+        input.reset();
         requestAnimationFrame(loop);
     }
 

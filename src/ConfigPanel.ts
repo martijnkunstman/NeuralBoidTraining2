@@ -30,12 +30,26 @@ export class ConfigPanel {
             vehicle.body.setAngularDamping(v);
         });
 
-        const trackFolder = this.gui.addFolder('Track');
+        const trackFolder = this.gui.addFolder('Track Editor');
+
         const trackConfig = {
-            seed: '300'
+            editMode: false,
+            clearTrack: () => {
+                const updatedTrack = this.world.track;
+                updatedTrack.controlPoints = [];
+                updatedTrack.createDefaultTrack();
+                updatedTrack.save();
+            }
         };
-        trackFolder.add(trackConfig, 'seed').name('Seed').onFinishChange((v: string) => {
-            this.world.regenerateTrack(v);
+
+        trackFolder.add(trackConfig, 'editMode').name('Edit Mode').onChange((v: boolean) => {
+            this.world.track.isEditing = v;
+        });
+
+        trackFolder.add(trackConfig, 'clearTrack').name('Reset / Clear Track');
+
+        trackFolder.add(this.world.track, 'trackWidth', 10, 100).name('Width').onChange(() => {
+            this.world.track.rebuildFunction();
         });
 
         const sensorFolder = this.gui.addFolder('Sensors');
