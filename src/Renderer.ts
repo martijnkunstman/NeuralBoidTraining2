@@ -1,4 +1,5 @@
 import { Vehicle } from './Vehicle';
+import { Brain } from './Brain';
 import { Input } from './Input';
 import { World } from './World';
 
@@ -220,6 +221,9 @@ export class Renderer {
         this.ctx.fillText(`Pos: ${vPos.x.toFixed(2)}, ${vPos.y.toFixed(2)}`, 10, 40);
 
         this.drawMinimap(world, vehicle);
+        if (vehicle.brain) {
+            this.drawBrain(vehicle.brain);
+        }
     }
 
     drawGrid(camX: number, camY: number, scale: number) {
@@ -313,4 +317,124 @@ export class Renderer {
         this.ctx.arc(dotX, dotY, 3, 0, Math.PI * 2);
         this.ctx.fill();
     }
+
+    drawBrain(brain: Brain) {
+        const startX = 50;
+        const startY = this.height - 250;
+        const width = 300;
+        const height = 200;
+
+        const levelCount = brain.levels.length;
+
+        // Helper to get node position
+        const getNodePos = (levelIndex: number, nodeIndex: number, totalNodes: number) => {
+            const x = startX + (width / levelCount) * levelIndex;
+            // Center nodes vertically
+            // const spacing = height / (totalNodes + 1); // +1 prevents hitting edges
+            // Or spread more evenly: 
+            // const spacing = height / totalNodes;
+            // const y = startY + spacing * nodeIndex + spacing / 2;
+
+            // Let's use available height
+            const step = height / (totalNodes - 1 || 1);
+            const totalH = step * (totalNodes - 1);
+            const yOffset = (height - totalH) / 2;
+            const y = startY + yOffset + step * nodeIndex;
+
+            return { x, y };
+        };
+
+        // Draw Levels
+        for (let i = 0; i < brain.levels.length; i++) {
+            const level = brain.levels[i];
+            const inputs = level.inputs;
+            const outputs = level.outputs;
+            const weights = level.weights;
+            // const biases = level.biases;
+
+            // Draw Connections
+            for (let j = 0; j < inputs.length; j++) {
+                for (let k = 0; k < outputs.length; k++) {
+                    const weight = weights[j][k];
+                    this.ctx.beginPath();
+                    const start = getNodePos(i, j, inputs.length);
+                    const end = getNodePos(i + 1, k, outputs.length);
+                    this.ctx.moveTo(start.x, start.y);
+                    this.ctx.lineTo(end.x, end.y);
+
+                    this.ctx.lineWidth = Math.abs(weight) * 2;
+                    // Color based on weight sign
+                    if (weight > 0) {
+                        this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+                    } else {
+                        this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+                    }
+                    this.ctx.stroke();
+                }
+            }
+        }
+
+        // Draw Nodes
+        // We iterate through levels. 
+        // For each level i, we draw its inputs.
+        // For the last level, we also draw its outputs.
+
+        for (let i = 0; i < brain.levels.length; i++) {
+            const level = brain.levels[i];
+            const inputs = level.inputs;
+
+            for (let j = 0; j < inputs.length; j++) {
+                const pos = getNodePos(i, j, inputs.length);
+                this.ctx.beginPath();
+                this.ctx.arc(pos.x, pos.y, 5, 0, Math.PI * 2);
+
+                // Visualization of activation
+                // Inputs might not be 0-1 if they are sensor distances.
+                // But generally 0-1 is expected for NN inputs.
+                // Let's assume they are somewhat normalized or just visualize value.
+                const val = inputs[j];
+                this.ctx.fillStyle = `rgba(255, 255, 255, ${val})`;
+                this.ctx.fill();
+
+                this.ctx.strokeStyle = 'white';
+                this.ctx.lineWidth = 1;
+                this.ctx.stroke();
+
+                // Input Labels (optional, maybe for first layer)
+                if (i === 0) {
+                    // Label sensors?
+                }
+            }
+        }
+
+        // Draw Output Nodes of last level
+        const lastLevel = brain.levels[brain.levels.length - 1];
+        const outputs = lastLevel.outputs;
+        for (let k = 0; k < outputs.length; k++) {
+            const pos = getNodePos(levelCount, k, outputs.length);
+            this.ctx.beginPath();
+            this.ctx.arc(pos.x, pos.y, 5, 0, Math.PI * 2);
+
+            const val = outputs[k];
+            // Since we used Sigmoid, val is 0-1
+            this.ctx.fillStyle = `rgba(255, 255, 255, ${val})`;
+            this.ctx.fill();
+
+            this.ctx.strokeStyle = 'white';
+            this.ctx.lineWidth = 1;
+            this.ctx.stroke();
+
+            // Output Labels
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = '10px monospace';
+            const labels = ['L', 'R', 'F'];
+            // My brain output mapping: [Left, Right, Forward] or similar?
+            // User said: "left right forward as output"
+            // So index 0: Left, 1: Right, 2: Forward
+            if (k < labels.length) {
+                this.ctx.fillText(labels[k], pos.x + 10, pos.y + 3);
+            }
+        }
+    }
 }
+

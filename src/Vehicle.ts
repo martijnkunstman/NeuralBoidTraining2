@@ -1,5 +1,6 @@
 import RAPIER from '@dimforge/rapier2d-compat';
 import { Input } from './Input';
+import { Brain } from './Brain';
 
 export class Vehicle {
     body: RAPIER.RigidBody;
@@ -24,9 +25,13 @@ export class Vehicle {
         hit?: { x: number, y: number, distance: number }
     }[] = [];
 
+    brain: Brain;
+
     world: RAPIER.World;
 
     constructor(world: RAPIER.World, x: number, y: number) {
+        this.brain = new Brain(this.sensorCount, [12, 6], 3); // 9 inputs, 12 hidden, 6 hidden, 3 outputs
+
         this.world = world;
         const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
             .setTranslation(x, y)
@@ -70,6 +75,14 @@ export class Vehicle {
         }
 
         this.updateSensors();
+        const inputs = this.sensors.map(s => {
+            if (s.hit) {
+                return 1 - (s.hit.distance / this.sensorLength);
+            } else {
+                return 0;
+            }
+        });
+        Brain.feedForward(inputs, this.brain);
     }
 
     updateSensors() {
