@@ -1,57 +1,43 @@
 import { Vehicle } from './Vehicle';
 import { Track } from './Track';
-import { FITNESS_WEIGHTS } from './constants';
 
 export class FitnessCalculator {
     /**
-     * Calculate comprehensive fitness for a vehicle
-     * Considers multiple factors to prevent gaming the system
+     * Calculate fitness based primarily on distance traveled along the track
      */
-    static calculate(vehicle: Vehicle, _track: Track): number {
-        // 1. Track progress (MOST IMPORTANT) - exponentially reward going further
-        // This is the primary driver - vehicles must make progress!
-        const progressScore = Math.pow(vehicle.trackProgress, 1.5) * FITNESS_WEIGHTS.trackProgress;
+    static calculate(vehicle: Vehicle): number {
+        // Primary metric: track progress (distance along track)
+        // This is measured in track waypoints completed
+        let fitness = vehicle.trackProgress * 100;
 
-        // 2. HEAVY penalty for stagnation (not making progress)
-        // If a vehicle stays in the same spot for more than 3 seconds, heavily penalize
-        const stagnationThreshold = 180; // 3 seconds at 60 FPS
-        let stagnationPenalty = 0;
-        if (vehicle.framesWithoutProgress > stagnationThreshold) {
-            // Exponential penalty: the longer they're stuck, the worse the penalty
-            const stagnantTime = (vehicle.framesWithoutProgress - stagnationThreshold) / 60;
-            stagnationPenalty = Math.pow(stagnantTime, 2) * 500; // Severe penalty
+        // Small bonus for staying alive longer (prevents immediate crashes)
+        fitness += vehicle.timeAlive * 0.5;
+
+        // Small penalty for straying too far from center (keeps vehicles on track)
+        fitness -= vehicle.centerDeviation * 0.1;
+
+        // Tiny penalty for stagnation (prevents getting stuck)
+        if (vehicle.framesWithoutProgress > 180) { // 3 seconds at 60fps
+            fitness -= (vehicle.framesWithoutProgress - 180) * 0.1;
         }
 
-        // 3. Penalize deviation from center
-        const avgDeviation = vehicle.centerDeviation / Math.max(1, vehicle.timeAlive);
-        const centerScore = Math.max(0, FITNESS_WEIGHTS.centerDeviation - avgDeviation * 2);
-
-        // 4. Reward speed (actual distance traveled)
-        const speedScore = vehicle.distanceTraveled / Math.max(1, vehicle.timeAlive) * FITNESS_WEIGHTS.speed;
-
-        // 5. Reward smooth driving
-        const smoothScore = vehicle.smoothness * FITNESS_WEIGHTS.smoothness;
-
-        // Survival score is minimal now - we only care about progress
-        const survivalScore = Math.min(vehicle.timeAlive * 0.5, 10);
-
-        const totalFitness = progressScore + centerScore + speedScore + smoothScore + survivalScore - stagnationPenalty;
-
-        return Math.max(0, totalFitness);
+        return Math.max(0, fitness);
     }
 
     /**
-     * Find the nearest point on track and calculate progress
+     * Update vehicle's track progress
      */
     static updateTrackProgress(vehicle: Vehicle, track: Track): void {
-        if (track.path.length === 0) return;
-
-        let minDist = Infinity;
-        let nearestIndex = 0;
+        if (!vehicle.isAlive || !track || !track.path || track.path.length === 0) {
+            return;
+        }
 
         const pos = vehicle.body.translation();
 
-        // Find nearest point on track
+        // Find nearest track point
+        let minDist = Infinity;
+        let nearestIndex = 0;
+
         for (let i = 0; i < track.path.length; i++) {
             const p = track.path[i];
             const dx = pos.x - p.x;
@@ -64,36 +50,24 @@ export class FitnessCalculator {
             }
         }
 
-        // Handle lap completion
-        if (vehicle.trackProgress > track.path.length * 0.9 && nearestIndex < track.path.length * 0.1) {
-            vehicle.lapsCompleted++;
-        }
+        // Update track progress (waypoint index represents distance along track)
+        const oldProgress = vehicle.trackProgress;
+        vehicle.trackProgress = nearestIndex;
 
-        // Update track progress (monotonically increasing)
-        const currentProgress = nearestIndex + (vehicle.lapsCompleted * track.path.length);
-        const previousProgress = vehicle.trackProgress;
-        vehicle.trackProgress = Math.max(vehicle.trackProgress, currentProgress);
-
-        // Detect stagnation: if progress hasn't increased, increment counter
-        if (vehicle.trackProgress <= previousProgress + 0.1) {
-            vehicle.framesWithoutProgress++;
+        // Detect if we've made progress
+        if (vehicle.trackProgress > oldProgress) {
+            vehicle.framesWithoutProgress = 0;
         } else {
-            vehicle.framesWithoutProgress = 0; // Reset if making progress
+            vehicle.framesWithoutProgress++;
         }
 
-        // Track center deviation
-        vehicle.centerDeviation += minDist;
+        // Track deviation from center
+        vehicle.centerDeviation = minDist;
 
-        // Track time alive
-        vehicle.timeAlive += 1 / 60; // Assuming 60 FPS
-
-        // Calculate smoothness (penalize large angular velocity changes)
-        const angVel = Math.abs(vehicle.body.angvel());
-        const prevAngVel = vehicle.previousAngularVelocity || 0;
-        const angVelChange = Math.abs(angVel - prevAngVel);
-
-        // Accumulate inverse of change (smoother = higher score)
-        vehicle.smoothness += Math.max(0, 1 - angVelChange);
-        vehicle.previousAngularVelocity = angVel;
+        // Handle lap completion
+        if (nearestIndex < 10 && oldProgress > track.path.length - 10) {
+            vehicle.lapsCompleted++;
+            vehicle.trackProgress = nearestIndex + (vehicle.lapsCompleted * track.path.length);
+        }
     }
 }

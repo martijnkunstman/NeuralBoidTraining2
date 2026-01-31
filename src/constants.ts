@@ -51,3 +51,9 @@ export const GENERATION_CONFIG = {
     PLATEAU_CHECK_GENERATIONS: 20,
     PLATEAU_IMPROVEMENT_THRESHOLD: 0.05
 } as const;
+
+// Random seed for deterministic/reproducible training
+export const RANDOM_SEED = {
+    enabled: true,
+    seed: 42 // Change this number for different deterministic runs
+} as const;

@@ -4,7 +4,11 @@ import { Input } from './Input';
 import { Track } from './Track';
 import { Brain } from './Brain';
 import { FitnessCalculator } from './FitnessCalculator';
-import { GA_CONFIG, GENERATION_CONFIG, NEURAL_NETWORK } from './constants';
+import { GA_CONFIG, GENERATION_CONFIG, NEURAL_NETWORK, RANDOM_SEED } from './constants';
+import seedrandom from 'seedrandom';
+
+// Seeded random number generator
+const rng = RANDOM_SEED.enabled ? seedrandom(RANDOM_SEED.seed.toString()) : Math.random;
 
 export class World {
     rapierWorld: RAPIER.World;
@@ -107,8 +111,8 @@ export class World {
                     brain = parentBrains[i].clone();
                 } else {
                     // Breeding: select two random parents and cross them over
-                    const parent1 = parentBrains[Math.floor(Math.random() * parentBrains.length)];
-                    const parent2 = parentBrains[Math.floor(Math.random() * parentBrains.length)];
+                    const parent1 = parentBrains[Math.floor(rng() * parentBrains.length)];
+                    const parent2 = parentBrains[Math.floor(rng() * parentBrains.length)];
                     brain = Brain.crossover(parent1, parent2);
 
                     // Mutate offspring
@@ -167,7 +171,7 @@ export class World {
                 for (const vehicle of this.vehicles) {
                     if (!vehicle.isAlive) continue;
 
-                    const fitness = FitnessCalculator.calculate(vehicle, this.track);
+                    const fitness = FitnessCalculator.calculate(vehicle);
                     if (fitness > bestFitness) {
                         bestFitness = fitness;
                         this.bestVehicle = vehicle;
@@ -241,7 +245,7 @@ export class World {
         // Calculate fitness for all vehicles
         const vehiclesWithFitness = this.vehicles.map(vehicle => ({
             vehicle,
-            fitness: FitnessCalculator.calculate(vehicle, this.track)
+            fitness: FitnessCalculator.calculate(vehicle)
         }));
 
         // Sort by fitness
