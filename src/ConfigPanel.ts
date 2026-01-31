@@ -79,13 +79,19 @@ export class ConfigPanel {
 
         const gaActions = {
             resetTraining: () => {
+                // Clear all localStorage data
                 localStorage.removeItem('bestBrain');
+                localStorage.removeItem('generationHistory');
+
+                // Reset world state
                 this.world.bestBrainEver = null;
                 this.world.bestFitnessEver = 0;
                 this.world.generation = 1;
                 this.world.generationHistory = [];
+
+                // Restart with fresh generation
                 this.world.spawnGeneration();
-                console.log('Training reset!');
+                console.log('🔄 Training reset! All localStorage cleared.');
             }
         };
         gaFolder.add(gaActions, 'resetTraining').name('Reset Training');

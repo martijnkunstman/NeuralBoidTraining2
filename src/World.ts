@@ -171,11 +171,17 @@ export class World {
                 this.lastImprovementTime = this.generationTimer;
             }
 
-            // Camera follows best vehicle
+
+            // Camera follows best vehicle with smooth interpolation
             if (this.bestVehicle && this.bestVehicle.isAlive) {
                 const vPos = this.bestVehicle.body.translation();
-                this.camera.x = vPos.x;
-                this.camera.y = vPos.y;
+
+                // Smooth lerp: camera moves 10% of the distance each frame (at 60fps)
+                // Lower value = smoother but slower, higher = faster but more jerky
+                const lerpFactor = 0.1;
+
+                this.camera.x += (vPos.x - this.camera.x) * lerpFactor;
+                this.camera.y += (vPos.y - this.camera.y) * lerpFactor;
             }
 
             // Check if generation should end
