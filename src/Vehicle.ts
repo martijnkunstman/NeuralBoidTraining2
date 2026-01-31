@@ -1,6 +1,7 @@
 import RAPIER from '@dimforge/rapier2d-compat';
 import { Input } from './Input';
 import { Brain } from './Brain';
+import { COLLISION_GROUPS, NEURAL_NETWORK, PHYSICS_CONFIG } from './constants';
 
 export class Vehicle {
     body: RAPIER.RigidBody;
@@ -36,6 +37,14 @@ export class Vehicle {
     isAlive: boolean = true;
     id: number;
 
+    // Enhanced fitness tracking
+    trackProgress: number = 0;
+    centerDeviation: number = 0;
+    timeAlive: number = 0;
+    smoothness: number = 0;
+    lapsCompleted: number = 0;
+    previousAngularVelocity: number = 0;
+
     constructor(world: RAPIER.World, x: number, y: number, brain?: Brain, id?: number) {
         this.id = id ?? Math.floor(Math.random() * 1000000);
         this.lastPosition = { x, y };
@@ -44,14 +53,18 @@ export class Vehicle {
         if (brain) {
             this.brain = brain;
         } else {
-            this.brain = new Brain(this.sensorCount, [12, 6], 3); // 9 inputs, 12 hidden, 6 hidden, 3 outputs
+            this.brain = new Brain(
+                NEURAL_NETWORK.INPUT_COUNT,
+                NEURAL_NETWORK.HIDDEN_LAYERS,
+                NEURAL_NETWORK.OUTPUT_COUNT
+            );
         }
 
         this.world = world;
         const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
             .setTranslation(x, y)
-            .setLinearDamping(2.0) // Lower drag for gliding
-            .setAngularDamping(5.0); // Lower angular damping for momentum in turns
+            .setLinearDamping(PHYSICS_CONFIG.LINEAR_DAMPING)
+            .setAngularDamping(PHYSICS_CONFIG.ANGULAR_DAMPING);
 
         this.body = world.createRigidBody(bodyDesc);
 
@@ -67,9 +80,7 @@ export class Vehicle {
         );
 
         // Set collision groups: vehicles (group bit 1) collide with walls (group bit 0) but not each other
-        // Format: upper 16 bits = filter (what to collide with), lower 16 bits = membership (what group I'm in)
-        // Vehicles: membership = 0x0002 (bit 1), filter = 0x0001 (bit 0 - only walls)
-        colliderDesc.setCollisionGroups(0x00010002);
+        colliderDesc.setCollisionGroups(COLLISION_GROUPS.VEHICLES);
 
         // Enable collision events so we can detect wall hits
         colliderDesc.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
@@ -96,14 +107,9 @@ export class Vehicle {
         const dirY = Math.sin(rotation);
 
         this.updateSensors(excludeColliders);
-        const inputs = this.sensors.map(s => {
-            if (s.hit) {
-                return 1 - (s.hit.distance / this.sensorLength);
-            } else {
-                return 0;
-            }
-        });
 
+        // Get brain inputs: sensors + velocity + angular velocity
+        const inputs = this.getBrainInputs();
         const outputs = Brain.feedForward(inputs, this.brain);
 
         if (this.useBrain) {
@@ -134,6 +140,31 @@ export class Vehicle {
                 this.body.applyTorqueImpulse(this.maxTorque * 0.016, true);
             }
         }
+    }
+
+    // Get brain inputs: sensors + velocity information
+    getBrainInputs(): number[] {
+        // Sensor inputs (9)
+        const sensorInputs = this.sensors.map(s => {
+            if (s.hit) {
+                // Normalize and square for better discrimination
+                const normalized = 1 - (s.hit.distance / this.sensorLength);
+                return normalized;
+            }
+            return 0;
+        });
+
+        // Get vehicle velocity
+        const vel = this.body.linvel();
+        const speed = Math.sqrt(vel.x ** 2 + vel.y ** 2);
+        const normalizedSpeed = Math.min(speed / this.maxSpeed, 1.0);
+
+        // Angular velocity (normalized)
+        const angVel = this.body.angvel();
+        const normalizedAngVel = Math.tanh(angVel / 5); // Normalize to -1 to 1
+
+        // Total: 11 inputs (9 sensors + speed + angular velocity)
+        return [...sensorInputs, normalizedSpeed, normalizedAngVel];
     }
 
     updateSensors(excludeColliders?: RAPIER.Collider[]) {

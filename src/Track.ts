@@ -1,5 +1,6 @@
 import RAPIER from '@dimforge/rapier2d-compat';
 import { Input } from './Input';
+import { COLLISION_GROUPS } from './constants';
 
 export class Track {
     world: RAPIER.World;
@@ -226,11 +227,9 @@ export class Track {
         const innerCollider = RAPIER.ColliderDesc.polyline(new Float32Array(innerFlat));
         const outerCollider = RAPIER.ColliderDesc.polyline(new Float32Array(outerFlat));
 
-        // Set collision groups: walls (group bit 0) collide with vehicles (group bit 1)
-        // Format: upper 16 bits = filter (what to collide with), lower 16 bits = membership (what group I'm in)
-        // Walls: membership = 0x0001 (bit 0), filter = 0x0002 (bit 1 - only vehicles)
-        innerCollider.setCollisionGroups(0x00020001);
-        outerCollider.setCollisionGroups(0x00020001);
+        // Set collision groups: walls collide with vehicles
+        innerCollider.setCollisionGroups(COLLISION_GROUPS.WALLS);
+        outerCollider.setCollisionGroups(COLLISION_GROUPS.WALLS);
 
         // Enable collision events
         innerCollider.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);

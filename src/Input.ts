@@ -18,12 +18,12 @@ export class Input {
             this.mouseY = e.clientY;
         });
 
-        window.addEventListener('mousedown', (e) => {
+        window.addEventListener('mousedown', (_e) => {
             this.isMouseDown = true;
             this.mouseClicked = true;
         });
 
-        window.addEventListener('mouseup', (e) => {
+        window.addEventListener('mouseup', (_e) => {
             this.isMouseDown = false;
         });
     }
